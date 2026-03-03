@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>В копилке — трекер полезных привычек</title>
+  <meta name="description" content="Трекер полезных экономических привычек с игровым форматом"/>
+  <meta name="theme-color" content="#FFB5C2"/>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐷</text></svg>"/>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Comfortaa:wght@700&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: linear-gradient(170deg,#FFF8F0 0%,#FFF0E6 30%,#F0F7FF 70%,#F5F0FF 100%); min-height:100vh; font-family:'Nunito','Segoe UI',sans-serif; }
+    @keyframes floatCoin{0%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(-40px) scale(1.3);opacity:0}}
+    @keyframes popIn{0%{transform:scale(.5);opacity:0}70%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+    @keyframes slideUp{0%{transform:translateY(30px);opacity:0}100%{transform:translateY(0);opacity:1}}
+    @keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+    @keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-6deg)}75%{transform:rotate(6deg)}}
+    @keyframes glow{0%,100%{box-shadow:0 0 8px rgba(255,181,194,.4)}50%{box-shadow:0 0 20px rgba(255,181,194,.8)}}
+    @keyframes fadeSlide{0%{transform:translateY(10px);opacity:0}100%{transform:translateY(0);opacity:1}}
+    @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+    .habit-card{transition:all .25s ease}.habit-card:active{transform:scale(.97)}
+    .nav-btn{transition:all .2s ease}.nav-btn:hover{transform:translateY(-2px)}
+    .check-btn{transition:all .2s cubic-bezier(.68,-.55,.27,1.55)}.check-btn:active{transform:scale(.85)}
+    .cat-pill{transition:all .2s ease;cursor:pointer}.cat-pill:hover{transform:translateY(-1px)}
+    input,textarea{font-family:'Nunito',sans-serif}
+    .quiz-btn{transition:all .15s ease}.quiz-btn:active{transform:scale(.95)}
+    ::-webkit-scrollbar{display:none}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+    const HABITS_LIBRARY = [
+      { id:"h1", title:"Правило 24 часов", emoji:"⏳", desc:"Перед покупкой дороже 2000₽ — подожди сутки. 70% импульсивных покупок отменяются.", science:"Исследование Journal of Consumer Research: задержка снижает эмоциональную привязку к покупке.", category:"траты", difficulty:1, savingsPerMonth:3000 },
+      { id:"h2", title:"Утренний кофе дома", emoji:"☕", desc:"Готовь кофе дома вместо кофейни. Экономия ~200₽/день.", science:"«Латте-фактор» Дэвида Баха: мелкие ежедневные траты съедают до 15% дохода.", category:"траты", difficulty:1, savingsPerMonth:4500 },
+      { id:"h3", title:"Заплати себе первому", emoji:"🏦", desc:"Переводи 10% дохода на накопительный счёт сразу после зарплаты.", science:"Принцип из «Самый богатый человек в Вавилоне» — основа финансовой грамотности.", category:"сбережения", difficulty:2, savingsPerMonth:5000 },
+      { id:"h4", title:"Список перед магазином", emoji:"📝", desc:"Ходи в магазин только со списком и не покупай сверх него.", science:"Планирование покупок снижает траты на 20-30% (Nielsen Consumer Research).", category:"траты", difficulty:1, savingsPerMonth:3500 },
+      { id:"h5", title:"Без подписок-зомби", emoji:"🧟", desc:"Раз в месяц проверяй подписки и отключай неиспользуемые.", science:"Средний россиянин тратит ~1500₽/мес на забытые подписки.", category:"траты", difficulty:1, savingsPerMonth:1500 },
+      { id:"h6", title:"Конверт на развлечения", emoji:"✉️", desc:"Фиксированная сумма наличными на развлечения. Кончились — стоп.", science:"Наличные тратятся на 12-18% экономнее карт (метод конвертов).", category:"бюджет", difficulty:2, savingsPerMonth:4000 },
+      { id:"h7", title:"Неделя без трат", emoji:"🚫", desc:"Раз в месяц — «неделя минимализма», только необходимые покупки.", science:"Челленджи формируют осознанное потребление (Баумайстер, «Willpower»).", category:"челлендж", difficulty:3, savingsPerMonth:5000 },
+      { id:"h8", title:"Округляй и копи", emoji:"🪙", desc:"Округляй покупку до 100₽ вверх, разницу — в копилку.", science:"Микронакопления: мозг не воспринимает мелочь как потерю.", category:"сбережения", difficulty:1, savingsPerMonth:2000 },
+    ];
+
+    const CATEGORIES = { все:"🌟", траты:"💸", сбережения:"💰", бюджет:"📊", челлендж:"🏆", мои:"✨" };
+
+    const ACHIEVEMENTS = [
+      { id:"a1", title:"Первый шаг", desc:"Добавь первую привычку", emoji:"🌱", need:1, type:"habits" },
+      { id:"a2", title:"Коллекционер", desc:"Добавь 5 привычек", emoji:"📚", need:5, type:"habits" },
+      { id:"a3", title:"Огонь!", desc:"3 дня подряд", emoji:"🔥", need:3, type:"streak" },
+      { id:"a4", title:"Неделя силы", desc:"7 дней подряд", emoji:"💪", need:7, type:"streak" },
+      { id:"a5", title:"Монетный двор", desc:"Накопи 10 000₽", emoji:"🏛️", need:10000, type:"savings" },
+      { id:"a6", title:"Мастер экономии", desc:"Накопи 50 000₽", emoji:"👑", need:50000, type:"savings" },
+    ];
+
+    const TIPS = [
+      "52% россиян не имеют финансовой подушки.",
+      "Правило 50/30/20: 50% нужды, 30% желания, 20% сбережения.",
+      "Сложный процент: 10 000₽/мес под 10% = 2 млн за 10 лет!",
+      "Эффект Дидро: одна покупка тянет за собой другие.",
+      "Автоматизация накоплений увеличивает сбережения на 35%.",
+      "Запись расходов снижает траты на 15-20% уже в первый месяц.",
+    ];
+
+    const CHALLENGES = [
+      { id:"c1", title:"Без доставки еды", emoji:"🍕", days:7, desc:"Готовь дома целую неделю", reward:50, savingsEst:3500 },
+      { id:"c2", title:"Без маркетплейсов", emoji:"📦", days:14, desc:"Две недели без онлайн-шопинга", reward:80, savingsEst:8000 },
+      { id:"c3", title:"Кофе-детокс", emoji:"☕", days:7, desc:"Неделя без покупного кофе", reward:40, savingsEst:1400 },
+      { id:"c4", title:"Транспортный минимализм", emoji:"🚶", days:5, desc:"5 дней пешком или на ОТ вместо такси", reward:60, savingsEst:3000 },
+      { id:"c5", title:"Ноль подписок", emoji:"📵", days:30, desc:"Месяц без новых платных подписок", reward:100, savingsEst:2000 },
+    ];
+
+    const QUIZ_DATA = [
+      { q:"Кешбэк-карты всегда экономят деньги", a:false, explain:"Кешбэк провоцирует тратить больше. Исследования показывают рост трат на 20-30% у владельцев кешбэк-карт." },
+      { q:"Записывать расходы — пустая трата времени", a:false, explain:"Люди, ведущие учёт расходов, тратят на 15-20% меньше уже в первый месяц." },
+      { q:"Маленькие траты не влияют на бюджет", a:false, explain:"200₽/день на мелочи = 73 000₽/год. Это может быть отпуск!" },
+      { q:"Скидка 50% — это экономия", a:false, explain:"Если вещь не была в плане покупок — вы потратили 50%, а не сэкономили 50%." },
+      { q:"Автоперевод на накопления эффективнее ручного", a:true, explain:"Автоматизация убирает необходимость принимать решение каждый раз, что увеличивает накопления на 35% (Vanguard)." },
+      { q:"Наличные тратятся медленнее, чем карта", a:true, explain:"Физическая «боль оплаты» при расчёте наличными снижает траты на 12-18%." },
+      { q:"Финансовая подушка должна быть минимум на 3 месяца", a:true, explain:"3-6 месяцев расходов — золотой стандарт. Это защита от потери работы, болезни, форс-мажоров." },
+      { q:"Инвестировать можно только с больших сумм", a:false, explain:"Сейчас можно начать с 1000₽. Главное — регулярность, а не размер взноса." },
+    ];
+
+    const EXPENSE_CATEGORIES = [
+      { id:"food", emoji:"🍔", name:"Еда" },
+      { id:"transport", emoji:"🚕", name:"Транспорт" },
+      { id:"fun", emoji:"🎮", name:"Развлечения" },
+      { id:"clothes", emoji:"👕", name:"Одежда" },
+      { id:"health", emoji:"💊", name:"Здоровье" },
+      { id:"other", emoji:"📎", name:"Другое" },
+    ];
+
+    function CoinIcon({ size = 20 }) {
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" fill="#FFD93D" stroke="#F0B90B" strokeWidth="2"/>
+          <text x="12" y="16" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#B8860B">₽</text>
+        </svg>
+      );
+    }
+
+    function PiggyBank({ size=80, fillPct=0 }) {
+      const bodyScale = 1 + fillPct * 0.35;
+      const cheekSize = 3 + fillPct * 2;
+      const bodyColor = fillPct > 0.7 ? "#FFD93D" : fillPct > 0.3 ? "#FFCAD4" : "#FFB5C2";
+      return (
+        <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+          <g transform={`translate(50,52) scale(${bodyScale}) translate(-50,-52)`}>
+            <ellipse cx="50" cy="52" rx="32" ry="26" fill={bodyColor} stroke="#E8899A" strokeWidth="2.5"/>
+            <circle cx="38" cy="44" r="2.5" fill="#333"/>
+            <circle cx="38" cy="44" r="1" fill="#fff"/>
+            <ellipse cx="62" cy="54" rx={cheekSize+2} ry={cheekSize} fill="#FF9AAF" stroke="#E8899A" strokeWidth="1.5"/>
+            <circle cx="60.5" cy="53" r="1.2" fill="#E8899A"/>
+            <circle cx="63.5" cy="53" r="1.2" fill="#E8899A"/>
+            <path d="M26 68 L22 80" stroke="#E8899A" strokeWidth="3" strokeLinecap="round"/>
+            <path d="M38 72 L36 80" stroke="#E8899A" strokeWidth="3" strokeLinecap="round"/>
+            <path d="M62 72 L64 80" stroke="#E8899A" strokeWidth="3" strokeLinecap="round"/>
+            <path d="M74 68 L78 80" stroke="#E8899A" strokeWidth="3" strokeLinecap="round"/>
+            <path d="M30 36 Q26 24 34 28" stroke="#E8899A" strokeWidth="2.5" fill={bodyColor}/>
+            <path d="M42 34 Q44 22 48 30" stroke="#E8899A" strokeWidth="2.5" fill={bodyColor}/>
+          </g>
+          <rect x="38" y={28 - fillPct*4} rx="3" ry="2" width="16" height="6" fill="#FFD93D" stroke="#F0B90B" strokeWidth="1.5"/>
+          {fillPct > 0.5 && <text x="50" y="18" textAnchor="middle" fontSize="14">✨</text>}
+          {fillPct >= 1 && <text x="50" y="10" textAnchor="middle" fontSize="12">🎉</text>}
+        </svg>
+      );
+    }
+
+    function App() {
+      const [screen, setScreen] = useState("home");
+      const [myHabits, setMyHabits] = useState([]);
+      const [checkedToday, setCheckedToday] = useState({});
+      const [streak, setStreak] = useState(0);
+      const [totalSaved, setTotalSaved] = useState(0);
+      const [coins, setCoins] = useState(0);
+      const [selectedCategory, setSelectedCategory] = useState("все");
+      const [showScience, setShowScience] = useState(null);
+      const [showNewHabit, setShowNewHabit] = useState(false);
+      const [newHabit, setNewHabit] = useState({ title:"", desc:"", emoji:"💡", savingsPerMonth:0 });
+      const [customHabits, setCustomHabits] = useState([]);
+      const [tipIndex, setTipIndex] = useState(0);
+      const [showAchievement, setShowAchievement] = useState(null);
+      const [unlockedAchievements, setUnlockedAchievements] = useState([]);
+      const [coinAnim, setCoinAnim] = useState(false);
+      const [hourlyRate, setHourlyRate] = useState("");
+      const [calcPrice, setCalcPrice] = useState("");
+      const [goals, setGoals] = useState([{ id:"g1", title:"Подушка безопасности", emoji:"🛡️", target:100000, saved:0 }]);
+      const [showNewGoal, setShowNewGoal] = useState(false);
+      const [newGoal, setNewGoal] = useState({ title:"", emoji:"🎯", target:"" });
+      const [activeChallenges, setActiveChallenges] = useState({});
+      const [quizIndex, setQuizIndex] = useState(0);
+      const [quizAnswer, setQuizAnswer] = useState(null);
+      const [quizScore, setQuizScore] = useState(0);
+      const [quizDone, setQuizDone] = useState(false);
+      const [expenses, setExpenses] = useState([]);
+      const [showAddExpense, setShowAddExpense] = useState(false);
+      const [newExpense, setNewExpense] = useState({ amount:"", category:"food", note:"" });
+
+      useEffect(() => { const t=setInterval(()=>setTipIndex(p=>(p+1)%TIPS.length),8000); return()=>clearInterval(t); }, []);
+      useEffect(() => { checkAchievements(); }, [myHabits.length, streak, totalSaved]);
+
+      function checkAchievements() {
+        ACHIEVEMENTS.forEach(a => {
+          if (unlockedAchievements.includes(a.id)) return;
+          let ok=false;
+          if(a.type==="habits"&&myHabits.length>=a.need) ok=true;
+          if(a.type==="streak"&&streak>=a.need) ok=true;
+          if(a.type==="savings"&&totalSaved>=a.need) ok=true;
+          if(ok){ setUnlockedAchievements(p=>[...p,a.id]); setShowAchievement(a); setCoins(p=>p+10); setTimeout(()=>setShowAchievement(null),3000); }
+        });
+      }
+
+      function addHabit(h) { if(myHabits.find(x=>x.id===h.id))return; setMyHabits(p=>[...p,h]); setCoins(p=>p+2); setCoinAnim(true); setTimeout(()=>setCoinAnim(false),600); }
+      function removeHabit(id) { setMyHabits(p=>p.filter(h=>h.id!==id)); setCheckedToday(p=>{const n={...p};delete n[id];return n;}); }
+      function toggleCheck(id) {
+        const h=myHabits.find(x=>x.id===id);
+        setCheckedToday(p=>{
+          const n={...p,[id]:!p[id]};
+          if(!p[id]){ setCoins(c=>c+5); setTotalSaved(s=>s+Math.round((h?.savingsPerMonth||1000)/30)); setCoinAnim(true); setTimeout(()=>setCoinAnim(false),600); if(Object.values(n).filter(Boolean).length===myHabits.length&&myHabits.length>0) setStreak(s=>s+1); }
+          return n;
+        });
+      }
+      function addCustomHabit() {
+        if(!newHabit.title.trim())return;
+        const h={id:"c_"+Date.now(),title:newHabit.title,emoji:newHabit.emoji||"💡",desc:newHabit.desc||"Моя привычка",science:"",category:"мои",difficulty:1,savingsPerMonth:Number(newHabit.savingsPerMonth)||1000};
+        setCustomHabits(p=>[...p,h]); addHabit(h); setNewHabit({title:"",desc:"",emoji:"💡",savingsPerMonth:0}); setShowNewHabit(false);
+      }
+      function startChallenge(c){ setActiveChallenges(p=>({...p,[c.id]:{startDay:Date.now(),progress:0,total:c.days}})); setCoins(p=>p+5); }
+      function tickChallenge(cid){
+        setActiveChallenges(p=>{
+          const ch={...p[cid],progress:p[cid].progress+1}; const challenge=CHALLENGES.find(x=>x.id===cid);
+          if(ch.progress>=ch.total){ setCoins(c=>c+(challenge?.reward||20)); setTotalSaved(s=>s+(challenge?.savingsEst||0)); const next={...p};delete next[cid];return next; }
+          return{...p,[cid]:ch};
+        });
+      }
+      function addGoalSaving(gid,amount){ setGoals(p=>p.map(g=>g.id===gid?{...g,saved:Math.min(g.saved+amount,g.target)}:g)); setTotalSaved(s=>s+amount); setCoins(c=>c+3); setCoinAnim(true); setTimeout(()=>setCoinAnim(false),600); }
+      function createGoal(){ if(!newGoal.title.trim()||!newGoal.target)return; setGoals(p=>[...p,{id:"g_"+Date.now(),title:newGoal.title,emoji:newGoal.emoji,target:Number(newGoal.target),saved:0}]); setNewGoal({title:"",emoji:"🎯",target:""}); setShowNewGoal(false); }
+      function answerQuiz(ans){ const correct=QUIZ_DATA[quizIndex].a===ans; setQuizAnswer({correct,explain:QUIZ_DATA[quizIndex].explain}); if(correct){setQuizScore(s=>s+1);setCoins(c=>c+3);} }
+      function nextQuiz(){ if(quizIndex+1>=QUIZ_DATA.length){setQuizDone(true);return;} setQuizIndex(i=>i+1); setQuizAnswer(null); }
+      function resetQuiz(){ setQuizIndex(0); setQuizAnswer(null); setQuizScore(0); setQuizDone(false); }
+      function addExpense(){ if(!newExpense.amount)return; setExpenses(p=>[{id:"e_"+Date.now(),...newExpense,amount:Number(newExpense.amount),date:new Date().toLocaleDateString("ru")},...p]); setNewExpense({amount:"",category:"food",note:""}); setShowAddExpense(false); }
+
+      const totalExpenses=expenses.reduce((s,e)=>s+e.amount,0);
+      const expenseByCategory=EXPENSE_CATEGORIES.map(c=>({...c,total:expenses.filter(e=>e.category===c.id).reduce((s,e)=>s+e.amount,0)})).filter(c=>c.total>0).sort((a,b)=>b.total-a.total);
+      const allHabits=[...HABITS_LIBRARY,...customHabits];
+      const filteredHabits=selectedCategory==="все"?allHabits:selectedCategory==="мои"?customHabits:allHabits.filter(h=>h.category===selectedCategory);
+      const checkedCount=Object.values(checkedToday).filter(Boolean).length;
+      const progressPct=myHabits.length>0?Math.round(checkedCount/myHabits.length*100):0;
+      const level=Math.floor(coins/30)+1;
+      const xpInLevel=coins%30;
+      const workHours=(hourlyRate&&calcPrice)?(Number(calcPrice)/Number(hourlyRate)).toFixed(1):null;
+
+      const S={
+        card:{background:"white",borderRadius:20,padding:18,boxShadow:"0 2px 16px rgba(0,0,0,0.04)",border:"1px solid rgba(0,0,0,0.05)"},
+        btn:(bg="#E8899A")=>({border:"none",borderRadius:14,cursor:"pointer",fontWeight:800,fontSize:13,fontFamily:"'Nunito',sans-serif",background:`linear-gradient(135deg, ${bg}, ${bg}dd)`,color:"white",boxShadow:`0 4px 12px ${bg}40`,padding:"10px 20px"}),
+        section:{padding:"16px 16px 0"},
+      };
+
+      return (
+        <div style={{minHeight:"100vh",maxWidth:480,margin:"0 auto",position:"relative"}}>
+          {showAchievement && (
+            <div style={{position:"fixed",top:80,left:"50%",transform:"translateX(-50%)",zIndex:999,animation:"popIn .4s ease"}}>
+              <div style={{background:"linear-gradient(135deg,#FFD93D,#FFB347)",borderRadius:20,padding:"16px 28px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 8px 32px rgba(255,179,71,.4)"}}>
+                <span style={{fontSize:36}}>{showAchievement.emoji}</span>
+                <div><div style={{fontWeight:800,color:"#5D4E37",fontSize:15}}>Достижение!</div><div style={{fontWeight:600,color:"#7A6B55",fontSize:13}}>{showAchievement.title}</div></div>
+              </div>
+            </div>
+          )}
+          {coinAnim && <div style={{position:"fixed",top:16,right:80,zIndex:998,animation:"floatCoin .6s ease forwards",pointerEvents:"none"}}><CoinIcon size={28}/></div>}
+
+          {/* HEADER */}
+          <div style={{padding:"20px 20px 16px",background:"linear-gradient(135deg,rgba(255,181,194,.15),rgba(255,217,61,.1))",borderBottom:"1px solid rgba(255,181,194,.2)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{animation:"wiggle 2s ease infinite"}}><PiggyBank size={42} fillPct={Math.min(totalSaved/50000,1)}/></div>
+                <div>
+                  <div style={{fontFamily:"'Comfortaa',cursive",fontWeight:700,fontSize:22,background:"linear-gradient(90deg,#E8899A,#FFB347,#E8899A)",backgroundSize:"200% auto",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",animation:"shimmer 3s linear infinite"}}>В копилке</div>
+                  <div style={{fontSize:11,color:"#A89080",fontWeight:600,marginTop:-2}}>трекер полезных привычек</div>
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:14}}>
+                <div style={{display:"flex",alignItems:"center",gap:5,background:"rgba(255,217,61,.2)",borderRadius:20,padding:"5px 12px",border:"1px solid rgba(255,217,61,.3)"}}>
+                  <CoinIcon size={16}/><span style={{fontWeight:800,fontSize:14,color:"#B8860B"}}>{coins}</span>
+                </div>
+                <div style={{background:"linear-gradient(135deg,#E8899A,#D4738A)",color:"white",borderRadius:12,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,boxShadow:"0 2px 8px rgba(232,137,154,.4)"}}>{level}</div>
+              </div>
+            </div>
+            <div style={{marginTop:10,display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:10,color:"#A89080",fontWeight:700}}>Ур.{level}</span>
+              <div style={{flex:1,height:6,background:"rgba(0,0,0,.06)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${xpInLevel/30*100}%`,height:"100%",background:"linear-gradient(90deg,#FFB5C2,#FFD93D)",borderRadius:3,transition:"width .5s ease"}}/></div>
+              <span style={{fontSize:10,color:"#A89080",fontWeight:700}}>{xpInLevel}/30</span>
+            </div>
+          </div>
+
+          {/* CONTENT */}
+          <div style={{padding:"0 0 110px",minHeight:"calc(100vh - 180px)"}}>
+
+            {/* HOME */}
+            {screen==="home" && (
+              <div style={{animation:"fadeSlide .3s ease"}}>
+                <div style={{margin:"16px 16px 0",padding:"14px 16px",background:"linear-gradient(135deg,rgba(144,205,244,.15),rgba(186,156,237,.12))",borderRadius:16,border:"1px solid rgba(144,205,244,.2)"}}>
+                  <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                    <span style={{fontSize:22}}>🧠</span>
+                    <div>
+                      <div style={{fontSize:10,fontWeight:700,color:"#7B8EC4",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>Факт дня</div>
+                      <div key={tipIndex} style={{fontSize:13,color:"#5A6080",lineHeight:1.5,fontWeight:600,animation:"fadeSlide .6s ease"}}>{TIPS[tipIndex]}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,padding:"16px 16px 0"}}>
+                  {[{v:streak,c:"#E8899A",l:"🔥 серия"},{v:myHabits.length,c:"#FFB347",l:"📋 привычек"},{v:totalSaved>=1000?`${(totalSaved/1000).toFixed(1)}к`:totalSaved,c:"#64B478",l:"💰 ₽"}].map((s,i)=>(
+                    <div key={i} style={{background:"white",borderRadius:18,padding:"14px 10px",textAlign:"center",boxShadow:`0 2px 12px ${s.c}18`,border:`1px solid ${s.c}1F`}}>
+                      <div style={{fontSize:i===2?20:24,fontWeight:900,color:s.c}}>{s.v}</div>
+                      <div style={{fontSize:10,color:"#A89080",fontWeight:700,marginTop:2}}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {myHabits.length>0 && (
+                  <div style={S.section}>
+                    <div style={S.card}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                        <span style={{fontWeight:800,fontSize:15,color:"#4A3728"}}>Сегодня</span>
+                        <span style={{fontWeight:700,fontSize:13,color:progressPct===100?"#64B478":"#A89080"}}>{checkedCount}/{myHabits.length} {progressPct===100&&"✨"}</span>
+                      </div>
+                      <div style={{height:10,background:"rgba(0,0,0,.05)",borderRadius:5,overflow:"hidden",marginBottom:16}}>
+                        <div style={{width:`${progressPct}%`,height:"100%",background:progressPct===100?"linear-gradient(90deg,#64B478,#A8E6CF)":"linear-gradient(90deg,#FFB5C2,#FFD93D)",borderRadius:5,transition:"width .5s cubic-bezier(.34,1.56,.64,1)"}}/>
+                      </div>
+                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                        {myHabits.map((h,i)=>(
+                          <div key={h.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:14,background:checkedToday[h.id]?"rgba(100,180,120,.08)":"rgba(0,0,0,.02)",border:`1px solid ${checkedToday[h.id]?"rgba(100,180,120,.2)":"rgba(0,0,0,.04)"}`,animation:`fadeSlide .3s ease ${i*.05}s both`}}>
+                            <button className="check-btn" onClick={()=>toggleCheck(h.id)} style={{width:30,height:30,borderRadius:10,border:`2px solid ${checkedToday[h.id]?"#64B478":"#D0C8C0"}`,background:checkedToday[h.id]?"#64B478":"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"white",flexShrink:0}}>{checkedToday[h.id]?"✓":""}</button>
+                            <span style={{fontSize:18}}>{h.emoji}</span>
+                            <span style={{fontSize:13,fontWeight:700,color:checkedToday[h.id]?"#64B478":"#5A5045",textDecoration:checkedToday[h.id]?"line-through":"none",flex:1}}>{h.title}</span>
+                            <span style={{fontSize:11,color:"#A89080",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>+5 <CoinIcon size={12}/></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {myHabits.length===0 && (
+                  <div style={{margin:"24px 16px",padding:28,textAlign:"center",...S.card}}>
+                    <div style={{fontSize:48,marginBottom:12,animation:"wiggle 3s ease infinite"}}>🐷</div>
+                    <div style={{fontWeight:800,fontSize:17,color:"#4A3728",marginBottom:6}}>Начни копить привычки!</div>
+                    <div style={{fontSize:13,color:"#A89080",lineHeight:1.6,fontWeight:600}}>Перейди в «Каталог» и выбери полезные привычки</div>
+                    <button onClick={()=>setScreen("catalog")} style={{marginTop:16,...S.btn()}}>Открыть каталог →</button>
+                  </div>
+                )}
+
+                {myHabits.length>0 && (
+                  <div style={{margin:"16px 16px 0",padding:18,background:"linear-gradient(135deg,rgba(100,180,120,.08),rgba(168,230,207,.12))",borderRadius:20,border:"1px solid rgba(100,180,120,.15)"}}>
+                    <div style={{fontWeight:800,fontSize:14,color:"#4A7C5A",marginBottom:8}}>💰 Прогноз накоплений</div>
+                    <div style={{display:"flex",justifyContent:"space-around"}}>
+                      {[1,3,12].map(m=>{const t=myHabits.reduce((s,h)=>s+(h.savingsPerMonth||1000),0)*m;return<div key={m} style={{textAlign:"center"}}><div style={{fontWeight:900,fontSize:18,color:"#3D8B5E"}}>{t>=1000?`${(t/1000).toFixed(0)}к`:t}₽</div><div style={{fontSize:11,color:"#7BAF8E",fontWeight:600}}>{m===1?"месяц":m===3?"3 мес":"год"}</div></div>;})}
+                    </div>
+                  </div>
+                )}
+
+                {Object.keys(activeChallenges).length>0 && (
+                  <div style={S.section}>
+                    <div style={{fontWeight:800,fontSize:15,color:"#4A3728",marginBottom:10}}>⚡ Активные челленджи</div>
+                    {Object.entries(activeChallenges).map(([cid,data])=>{const ch=CHALLENGES.find(x=>x.id===cid);if(!ch)return null;const pct=data.progress/data.total*100;return(
+                      <div key={cid} style={{...S.card,marginBottom:10}}>
+                        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+                          <span style={{fontSize:28}}>{ch.emoji}</span>
+                          <div style={{flex:1}}><div style={{fontWeight:800,fontSize:14,color:"#4A3728"}}>{ch.title}</div><div style={{fontSize:11,color:"#A89080",fontWeight:600}}>День {data.progress}/{data.total}</div></div>
+                          <button onClick={()=>tickChallenge(cid)} style={{...S.btn("#64B478"),padding:"8px 16px",fontSize:12}}>+1 день ✓</button>
+                        </div>
+                        <div style={{height:8,background:"rgba(0,0,0,.05)",borderRadius:4,overflow:"hidden"}}><div style={{width:`${pct}%`,height:"100%",background:"linear-gradient(90deg,#64B478,#A8E6CF)",borderRadius:4,transition:"width .4s ease"}}/></div>
+                      </div>
+                    );})}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* CATALOG */}
+            {screen==="catalog" && (
+              <div style={{animation:"fadeSlide .3s ease"}}>
+                <div style={{display:"flex",gap:8,padding:"16px 16px 0",overflowX:"auto",scrollbarWidth:"none"}}>
+                  {Object.entries(CATEGORIES).map(([cat,emoji])=>(<button key={cat} className="cat-pill" onClick={()=>setSelectedCategory(cat)} style={{padding:"7px 14px",borderRadius:20,border:selectedCategory===cat?"2px solid #E8899A":"2px solid rgba(0,0,0,.06)",background:selectedCategory===cat?"rgba(232,137,154,.12)":"white",fontWeight:700,fontSize:12,color:selectedCategory===cat?"#D4738A":"#8A7B70",whiteSpace:"nowrap",fontFamily:"'Nunito',sans-serif"}}>{emoji} {cat}</button>))}
+                </div>
+                <div style={{padding:"12px 16px",display:"flex",flexDirection:"column",gap:12}}>
+                  {filteredHabits.map((h,i)=>{const isAdded=myHabits.find(m=>m.id===h.id);return(
+                    <div key={h.id} className="habit-card" style={{...S.card,border:isAdded?"2px solid rgba(100,180,120,.3)":"1px solid rgba(0,0,0,.05)",animation:`fadeSlide .3s ease ${i*.05}s both`}}>
+                      <div style={{display:"flex",gap:12}}>
+                        <div style={{width:44,height:44,borderRadius:14,background:"linear-gradient(135deg,rgba(255,217,61,.15),rgba(255,179,71,.1))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{h.emoji}</div>
+                        <div style={{flex:1}}><div style={{fontWeight:800,fontSize:15,color:"#4A3728",marginBottom:3}}>{h.title}</div><div style={{fontSize:12,color:"#8A7B70",lineHeight:1.5,fontWeight:600}}>{h.desc}</div></div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:10,marginTop:12}}>
+                        <div style={{padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:h.difficulty===1?"rgba(100,180,120,.1)":h.difficulty===2?"rgba(255,179,71,.12)":"rgba(232,137,154,.12)",color:h.difficulty===1?"#4A7C5A":h.difficulty===2?"#C48830":"#C4586E"}}>{"⭐".repeat(h.difficulty)} {h.difficulty===1?"легко":h.difficulty===2?"средне":"челлендж"}</div>
+                        <div style={{fontSize:11,color:"#64B478",fontWeight:700}}>~{(h.savingsPerMonth||0).toLocaleString()}₽/мес</div>
+                      </div>
+                      {h.science&&(<div style={{marginTop:10}}><button onClick={()=>setShowScience(showScience===h.id?null:h.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:"#7B8EC4",fontWeight:700,fontFamily:"'Nunito',sans-serif"}}>🔬 {showScience===h.id?"Скрыть":"Научное обоснование"}</button>{showScience===h.id&&<div style={{marginTop:8,padding:"10px 12px",background:"rgba(123,142,196,.06)",borderRadius:12,fontSize:12,color:"#5A6080",lineHeight:1.5,fontWeight:600,borderLeft:"3px solid rgba(123,142,196,.3)",animation:"fadeSlide .3s ease"}}>{h.science}</div>}</div>)}
+                      <button onClick={()=>isAdded?removeHabit(h.id):addHabit(h)} style={{marginTop:12,width:"100%",padding:"10px 0",borderRadius:14,border:"none",cursor:"pointer",fontWeight:800,fontSize:13,fontFamily:"'Nunito',sans-serif",background:isAdded?"rgba(0,0,0,.04)":"linear-gradient(135deg,#FFB5C2,#E8899A)",color:isAdded?"#A89080":"white",boxShadow:isAdded?"none":"0 4px 12px rgba(232,137,154,.25)"}}>{isAdded?"✓ Добавлено":"+ В мои привычки"}</button>
+                    </div>
+                  );})}
+                </div>
+                <div style={{padding:"8px 16px 16px"}}><button onClick={()=>setShowNewHabit(true)} style={{width:"100%",padding:"14px 0",borderRadius:18,border:"2px dashed rgba(232,137,154,.3)",background:"rgba(232,137,154,.04)",cursor:"pointer",fontWeight:800,fontSize:14,color:"#D4738A",fontFamily:"'Nunito',sans-serif"}}>✨ Создать свою привычку</button></div>
+              </div>
+            )}
+
+            {/* TOOLS */}
+            {screen==="tools" && (
+              <div style={{padding:16,animation:"fadeSlide .3s ease"}}>
+                <div style={{...S.card,marginBottom:16}}>
+                  <div style={{fontWeight:800,fontSize:16,color:"#4A3728",marginBottom:4}}>⏱️ Калькулятор «в часах работы»</div>
+                  <div style={{fontSize:12,color:"#A89080",fontWeight:600,marginBottom:14}}>Узнай, сколько часов ты работаешь на эту покупку</div>
+                  <div style={{display:"flex",gap:10,marginBottom:12}}>
+                    <div style={{flex:1}}><label style={{fontSize:11,fontWeight:700,color:"#8A7B70",display:"block",marginBottom:4}}>Ставка ₽/час</label><input type="number" value={hourlyRate} onChange={e=>setHourlyRate(e.target.value)} placeholder="350" style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"2px solid rgba(0,0,0,.08)",fontSize:14,fontWeight:600,outline:"none"}}/></div>
+                    <div style={{flex:1}}><label style={{fontSize:11,fontWeight:700,color:"#8A7B70",display:"block",marginBottom:4}}>Цена покупки ₽</label><input type="number" value={calcPrice} onChange={e=>setCalcPrice(e.target.value)} placeholder="5000" style={{width:"100%",padding:"10px 12px",borderRadius:12,border:"2px solid rgba(0,0,0,.08)",fontSize:14,fontWeight:600,outline:"none"}}/></div>
+                  </div>
+                  {workHours && (
+                    <div style={{background:"linear-gradient(135deg,rgba(232,137,154,.08),rgba(255,179,71,.08))",borderRadius:16,padding:16,textAlign:"center",animation:"popIn .3s ease"}}>
+                      <div style={{fontSize:36,fontWeight:900,color:"#E8899A"}}>{workHours}</div>
+                      <div style={{fontSize:13,color:"#8A7B70",fontWeight:700}}>{Number(workHours)<1?"меньше часа работы":Number(workHours)<8?`часов работы — это ${(Number(workHours)/8*100).toFixed(0)}% рабочего дня`:`часов — это ${(Number(workHours)/8).toFixed(1)} рабочих дней!`}</div>
+                      <div style={{marginTop:8,fontSize:11,color:"#B0A598",fontWeight:600}}>💡 Подумай: стоит ли эта вещь {workHours} часов твоей жизни?</div>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{...S.card,marginBottom:16}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                    <div><div style={{fontWeight:800,fontSize:16,color:"#4A3728"}}>📒 Дневник трат</div><div style={{fontSize:11,color:"#A89080",fontWeight:600}}>Записывай, куда уходят деньги</div></div>
+                    <button onClick={()=>setShowAddExpense(true)} style={{...S.btn("#7B8EC4"),padding:"8px 14px",fontSize:12}}>+ Трата</button>
+                  </div>
+                  {expenses.length>0?(
+                    <>
+                      <div style={{background:"rgba(232,137,154,.06)",borderRadius:14,padding:12,marginBottom:12}}><div style={{fontSize:11,fontWeight:700,color:"#A89080",marginBottom:6}}>ИТОГО</div><div style={{fontSize:24,fontWeight:900,color:"#E8899A"}}>{totalExpenses.toLocaleString()}₽</div></div>
+                      {expenseByCategory.length>0&&<div style={{marginBottom:12}}>{expenseByCategory.map(c=>(<div key={c.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}><span style={{fontSize:16}}>{c.emoji}</span><span style={{flex:1,fontSize:12,fontWeight:700,color:"#5A5045"}}>{c.name}</span><div style={{flex:2,height:8,background:"rgba(0,0,0,.05)",borderRadius:4,overflow:"hidden"}}><div style={{width:`${c.total/totalExpenses*100}%`,height:"100%",background:"linear-gradient(90deg,#FFB5C2,#E8899A)",borderRadius:4}}/></div><span style={{fontSize:12,fontWeight:800,color:"#8A7B70",minWidth:50,textAlign:"right"}}>{c.total.toLocaleString()}₽</span></div>))}</div>}
+                      <div style={{maxHeight:200,overflowY:"auto"}}>{expenses.slice(0,10).map(e=>{const cat=EXPENSE_CATEGORIES.find(c=>c.id===e.category);return(<div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(0,0,0,.04)"}}><span style={{fontSize:16}}>{cat?.emoji}</span><div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:"#5A5045"}}>{e.note||cat?.name}</div><div style={{fontSize:10,color:"#B0A598"}}>{e.date}</div></div><span style={{fontSize:13,fontWeight:800,color:"#E8899A"}}>-{e.amount.toLocaleString()}₽</span></div>);})}</div>
+                    </>
+                  ):(<div style={{textAlign:"center",padding:16,color:"#B0A598",fontSize:13,fontWeight:600}}>Пока пусто — добавь первую трату</div>)}
+                </div>
+
+                <div style={{...S.card,marginBottom:16}}>
+                  <div style={{fontWeight:800,fontSize:16,color:"#4A3728",marginBottom:4}}>🧩 Мифы vs Факты</div>
+                  <div style={{fontSize:12,color:"#A89080",fontWeight:600,marginBottom:14}}>Проверь финансовую грамотность</div>
+                  {!quizDone?(
+                    <>
+                      <div style={{fontSize:11,fontWeight:700,color:"#7B8EC4",marginBottom:8}}>Вопрос {quizIndex+1}/{QUIZ_DATA.length}</div>
+                      <div style={{background:"rgba(123,142,196,.06)",borderRadius:14,padding:14,marginBottom:12}}><div style={{fontSize:14,fontWeight:700,color:"#4A3728",lineHeight:1.5}}>«{QUIZ_DATA[quizIndex].q}»</div></div>
+                      {!quizAnswer?(
+                        <div style={{display:"flex",gap:10}}>
+                          <button className="quiz-btn" onClick={()=>answerQuiz(true)} style={{flex:1,padding:"12px 0",borderRadius:14,border:"2px solid rgba(100,180,120,.3)",background:"rgba(100,180,120,.06)",fontWeight:800,fontSize:14,color:"#4A7C5A",cursor:"pointer",fontFamily:"'Nunito',sans-serif"}}>✅ Правда</button>
+                          <button className="quiz-btn" onClick={()=>answerQuiz(false)} style={{flex:1,padding:"12px 0",borderRadius:14,border:"2px solid rgba(232,137,154,.3)",background:"rgba(232,137,154,.06)",fontWeight:800,fontSize:14,color:"#C4586E",cursor:"pointer",fontFamily:"'Nunito',sans-serif"}}>❌ Миф</button>
+                        </div>
+                      ):(
+                        <div style={{animation:"fadeSlide .3s ease"}}>
+                          <div style={{padding:14,borderRadius:14,background:quizAnswer.correct?"rgba(100,180,120,.1)":"rgba(232,137,154,.1)",border:`2px solid ${quizAnswer.correct?"rgba(100,180,120,.3)":"rgba(232,137,154,.3)"}`,marginBottom:12}}>
+                            <div style={{fontWeight:800,fontSize:14,color:quizAnswer.correct?"#4A7C5A":"#C4586E",marginBottom:6}}>{quizAnswer.correct?"✅ Верно! +3 монеты":"❌ Неверно!"}</div>
+                            <div style={{fontSize:12,color:"#5A6080",lineHeight:1.5,fontWeight:600}}>{quizAnswer.explain}</div>
+                          </div>
+                          <button onClick={nextQuiz} style={{width:"100%",...S.btn("#7B8EC4")}}>{quizIndex+1>=QUIZ_DATA.length?"Результаты":"Следующий →"}</button>
+                        </div>
+                      )}
+                    </>
+                  ):(
+                    <div style={{textAlign:"center",padding:10,animation:"popIn .4s ease"}}>
+                      <div style={{fontSize:48,marginBottom:8}}>{quizScore>=6?"🏆":quizScore>=4?"👍":"📚"}</div>
+                      <div style={{fontSize:24,fontWeight:900,color:"#4A3728"}}>{quizScore}/{QUIZ_DATA.length}</div>
+                      <div style={{fontSize:13,color:"#8A7B70",fontWeight:600,marginBottom:14}}>{quizScore>=6?"Финансовый гуру!":quizScore>=4?"Хорошая база!":"Есть куда расти!"}</div>
+                      <button onClick={resetQuiz} style={S.btn("#7B8EC4")}>Пройти заново 🔄</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* GOALS */}
+            {screen==="goals" && (
+              <div style={{padding:16,animation:"fadeSlide .3s ease"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <div style={{fontWeight:800,fontSize:18,color:"#4A3728"}}>🎯 Копилка целей</div>
+                  <button onClick={()=>setShowNewGoal(true)} style={{...S.btn(),padding:"8px 14px",fontSize:12}}>+ Цель</button>
+                </div>
+
+                {goals.map(g=>{const pct=g.target>0?g.saved/g.target:0;return(
+                  <div key={g.id} style={{...S.card,marginBottom:16,animation:"fadeSlide .3s ease"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
+                      <PiggyBank size={70} fillPct={pct}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:800,fontSize:16,color:"#4A3728"}}>{g.emoji} {g.title}</div>
+                        <div style={{fontSize:22,fontWeight:900,color:"#64B478",marginTop:4}}>{g.saved.toLocaleString()} <span style={{fontSize:13,color:"#A89080"}}>/ {g.target.toLocaleString()}₽</span></div>
+                      </div>
+                    </div>
+                    <div style={{height:12,background:"rgba(0,0,0,.05)",borderRadius:6,overflow:"hidden",marginBottom:12}}><div style={{width:`${pct*100}%`,height:"100%",background:pct>=1?"linear-gradient(90deg,#FFD93D,#FFB347)":"linear-gradient(90deg,#64B478,#A8E6CF)",borderRadius:6,transition:"width .6s cubic-bezier(.34,1.56,.64,1)",animation:pct>=1?"pulse 1s ease infinite":"none"}}/></div>
+                    <div style={{fontSize:12,color:"#8A7B70",fontWeight:700,textAlign:"center",marginBottom:12}}>{pct>=1?"🎉 Цель достигнута!":`${(pct*100).toFixed(0)}% — осталось ${(g.target-g.saved).toLocaleString()}₽`}</div>
+                    {pct<1&&(<div style={{display:"flex",gap:8}}>{[500,1000,2000,5000].map(amt=>(<button key={amt} onClick={()=>addGoalSaving(g.id,amt)} style={{flex:1,padding:"8px 0",borderRadius:12,border:"2px solid rgba(100,180,120,.2)",background:"rgba(100,180,120,.04)",fontWeight:800,fontSize:12,color:"#4A7C5A",cursor:"pointer",fontFamily:"'Nunito',sans-serif"}}>{amt>=1000?`${amt/1000}к`:amt}₽</button>))}</div>)}
+                    {g.saved>0&&(<div style={{marginTop:12,padding:10,background:"rgba(255,217,61,.06)",borderRadius:12}}><div style={{fontSize:11,fontWeight:700,color:"#B8860B",marginBottom:4}}>🪙 Ты накопил(а) на:</div><div style={{fontSize:12,color:"#8A7B70",fontWeight:600,lineHeight:1.8}}>{g.saved>=200&&<span>☕ {Math.floor(g.saved/200)} чашек кофе</span>}{g.saved>=500&&<span> • 🍕 {Math.floor(g.saved/500)} пицц</span>}{g.saved>=1500&&<span> • 🎬 {Math.floor(g.saved/1500)} походов в кино</span>}</div></div>)}
+                  </div>
+                );})}
+
+                <div style={{fontWeight:800,fontSize:18,color:"#4A3728",marginTop:8,marginBottom:12}}>⚡ Челленджи</div>
+                {CHALLENGES.map(c=>{const active=activeChallenges[c.id];return(
+                  <div key={c.id} style={{...S.card,marginBottom:12}}>
+                    <div style={{display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,rgba(255,217,61,.15),rgba(255,179,71,.1))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>{c.emoji}</div>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:800,fontSize:14,color:"#4A3728"}}>{c.title}</div>
+                        <div style={{fontSize:11,color:"#8A7B70",fontWeight:600}}>{c.desc} • {c.days} дней</div>
+                        <div style={{fontSize:11,color:"#64B478",fontWeight:700}}>~{c.savingsEst.toLocaleString()}₽ экономии</div>
+                      </div>
+                      {!active?(<button onClick={()=>startChallenge(c)} style={{...S.btn("#FFB347"),padding:"8px 14px",fontSize:11}}>Начать</button>):(<div style={{textAlign:"center"}}><div style={{fontSize:13,fontWeight:900,color:"#64B478"}}>{active.progress}/{active.total}</div><button onClick={()=>tickChallenge(c.id)} style={{...S.btn("#64B478"),padding:"6px 12px",fontSize:11,marginTop:4}}>+1 ✓</button></div>)}
+                    </div>
+                    {active&&(<div style={{marginTop:10,height:6,background:"rgba(0,0,0,.05)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${active.progress/active.total*100}%`,height:"100%",background:"linear-gradient(90deg,#64B478,#A8E6CF)",borderRadius:3,transition:"width .4s ease"}}/></div>)}
+                  </div>
+                );})}
+
+                <div style={{fontWeight:800,fontSize:18,color:"#4A3728",marginTop:8,marginBottom:12}}>🏆 Достижения</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  {ACHIEVEMENTS.map(a=>{const unlocked=unlockedAchievements.includes(a.id);return(
+                    <div key={a.id} style={{padding:14,borderRadius:16,background:unlocked?"white":"rgba(0,0,0,.02)",border:unlocked?"2px solid rgba(255,217,61,.3)":"1px solid rgba(0,0,0,.05)",opacity:unlocked?1:.45,textAlign:"center"}}>
+                      <div style={{fontSize:28,filter:unlocked?"none":"grayscale(1)",marginBottom:4}}>{a.emoji}</div>
+                      <div style={{fontSize:12,fontWeight:800,color:unlocked?"#4A3728":"#A89080"}}>{a.title}</div>
+                      <div style={{fontSize:10,color:"#A89080",fontWeight:600}}>{a.desc}</div>
+                    </div>
+                  );})}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* MODALS */}
+          {showNewHabit&&(<div onClick={()=>setShowNewHabit(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}}><div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:480,background:"white",borderRadius:"24px 24px 0 0",padding:24,animation:"slideUp .3s ease"}}>
+            <div style={{fontWeight:800,fontSize:18,color:"#4A3728",marginBottom:16}}>✨ Новая привычка</div>
+            <div style={{marginBottom:12}}><label style={{fontSize:12,fontWeight:700,color:"#8A7B70",display:"block",marginBottom:4}}>Эмодзи</label><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{["💡","🎯","📱","🍳","🚲","🏃","📖","🧘","🛒"].map(e=>(<button key={e} onClick={()=>setNewHabit(p=>({...p,emoji:e}))} style={{width:40,height:40,borderRadius:12,fontSize:20,border:newHabit.emoji===e?"2px solid #E8899A":"2px solid rgba(0,0,0,.06)",background:newHabit.emoji===e?"rgba(232,137,154,.08)":"white",cursor:"pointer"}}>{e}</button>))}</div></div>
+            <div style={{marginBottom:12}}><label style={{fontSize:12,fontWeight:700,color:"#8A7B70",display:"block",marginBottom:4}}>Название *</label><input value={newHabit.title} onChange={e=>setNewHabit(p=>({...p,title:e.target.value}))} placeholder="Напр.: Готовить обед дома" style={{width:"100%",padding:"10px 14px",borderRadius:14,border:"2px solid rgba(0,0,0,.08)",fontSize:14,fontWeight:600,outline:"none"}}/></div>
+            <div style={{marginBottom:12}}><label style={{fontSize:12,fontWeight:700,color:"#8A7B70",display:"block",marginBottom:4}}>Описание</label><textarea value={newHabit.desc} onChange={e=>setNewHabit(p=>({...p,desc:e.target.value}))} placeholder="Как это помогает экономить?" rows={2} style={{width:"100%",padding:"10px 14px",borderRadius:14,border:"2px solid rgba(0,0,0,.08)",fontSize:13,fontWeight:600,outline:"none",resize:"none"}}/></div>
+            <div style={{marginBottom:16}}><label style={{fontSize:12,fontWeight:700,color:"#8A7B70",display:"block",marginBottom:4}}>Экономия ₽/мес</label><input type="number" value={newHabit.savingsPerMonth||""} onChange={e=>setNewHabit(p=>({...p,savingsPerMonth:e.target.value}))} placeholder="3000" style={{width:"100%",padding:"10px 14px",borderRadius:14,border:"2px solid rgba(0,0,0,.08)",fontSize:14,fontWeight:600,outline:"none"}}/></div>
+            <div style={{display:"flex",gap:10}}><button onClick={()=>setShowNewHabit(false)} style={{flex:1,padding:"12px 0",borderRadius:14,border:"2px solid rgba(0,0,0,.08)",background:"white",fontWeight:800,fontSize:14,color:"#8A7B70",cursor:"pointer",fontFamily:"'Nunito',sans-serif"}}>Отмена</button><button onClick={addCustomHabit} style={{flex:2,padding:"12px 0",borderRadius:14,border:"none",background:"linear-gradient(135deg,#FFB5C2,#E8899A)",fontWeight:800,fontSize:14,color:"white",cursor:"pointer",fontFamily:"'Nunito',sans-serif",boxShadow:"0 4px 12px rgba(232,137,154,.3)",opacity:newHabit.title.trim()?1:.5}}>Создать 🎉</button></div>
+          </div></div>)}
+
+          {showNewGoal&&(<div onClick={()=>setShowNewGoal(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}}><div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:480,background:"white",borderRadius:"24px 24px 0 0",padding:24,animation:"slideUp .3s ease"}}>
+            <div style={{fontWeight:800,fontSize:18,color:"#4A3728",marginBottom:16}}>🎯 Новая цель</div>
+            <div style={{marginBottom:12}}><label style={{fontSize:12,fontWeight:700,color:"#8A7B70",display:"block",marginBottom:4}}>Эмодзи</label><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{["🎯","✈️","📱","🚗","🏠","💻","👗","🎓","🛡️"].map(e=>(<button key={e} onClick={()=>setNewGoal(p=>({...p,emoji:e}))} style={{width:40,height:40,borderRadius:12,fontSize:20,border:newGoal.emoji===e?"2px solid #E8899A":"2px solid rgba(0,0,0,.06)",background:newGoal.emoji===e?"rgba(232,137,154,.08)":"white",cursor:"pointer"}}>{e}</button>))}</div></div>
+            <div style={{marginBottom:12}}><label style={{fontSize:12,fontWeight:700,color:"#8A7B70",display:"block",marginBottom:4}}>На что копим? *</label><input value={newGoal.title} onChange={e=>setNewGoal(p=>({...p,title:e.target.value}))} placeholder="Отпуск в Турции" style={{width:"100%",padding:"10px 14px",borderRadius:14,border:"2px solid rgba(0,0,0,.08)",fontSize:14,fontWeight:600,outline:"none"}}/></div>
+            <div style={{marginBottom:16}}><label style={{fontSize:12,fontWeight:700,color:"#8A7B70",display:"block",marginBottom:4}}>Сумма ₽ *</label><input type="number" value={newGoal.target} onChange={e=>setNewGoal(p=>({...p,target:e.target.value}))} placeholder="150000" style={{width:"100%",padding:"10px 14px",borderRadius:14,border:"2px solid rgba(0,0,0,.08)",fontSize:14,fontWeight:600,outline:"none"}}/></div>
+            <div style={{display:"flex",gap:10}}><button onClick={()=>setShowNewGoal(false)} style={{flex:1,padding:"12px 0",borderRadius:14,border:"2px solid rgba(0,0,0,.08)",background:"white",fontWeight:800,fontSize:14,color:"#8A7B70",cursor:"pointer",fontFamily:"'Nunito',sans-serif"}}>Отмена</button><button onClick={createGoal} style={{flex:2,padding:"12px 0",borderRadius:14,border:"none",background:"linear-gradient(135deg,#64B478,#4A9C62)",fontWeight:800,fontSize:14,color:"white",cursor:"pointer",fontFamily:"'Nunito',sans-serif",boxShadow:"0 4px 12px rgba(100,180,120,.3)",opacity:(newGoal.title.trim()&&newGoal.target)?1:.5}}>Создать 🎯</button></div>
+          </div></div>)}
+
+          {showAddExpense&&(<div onClick={()=>setShowAddExpense(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}}><div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:480,background:"white",borderRadius:"24px 24px 0 0",padding:24,animation:"slideUp .3s ease"}}>
+            <div style={{fontWeight:800,fontSize:18,color:"#4A3728",marginBottom:16}}>📒 Новая трата</div>
+            <div style={{marginBottom:12}}><label style={{fontSize:11,fontWeight:700,color:"#8A7B70",display:"block",marginBottom:4}}>Сумма ₽ *</label><input type="number" value={newExpense.amount} onChange={e=>setNewExpense(p=>({...p,amount:e.target.value}))} placeholder="350" style={{width:"100%",padding:"10px 14px",borderRadius:14,border:"2px solid rgba(0,0,0,.08)",fontSize:18,fontWeight:700,outline:"none",textAlign:"center"}}/></div>
+            <div style={{marginBottom:12}}><label style={{fontSize:12,fontWeight:700,color:"#8A7B70",display:"block",marginBottom:6}}>Категория</label><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>{EXPENSE_CATEGORIES.map(c=>(<button key={c.id} onClick={()=>setNewExpense(p=>({...p,category:c.id}))} style={{padding:"10px 0",borderRadius:12,border:newExpense.category===c.id?"2px solid #E8899A":"2px solid rgba(0,0,0,.06)",background:newExpense.category===c.id?"rgba(232,137,154,.08)":"white",cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontWeight:700,fontSize:12,color:"#5A5045"}}><div style={{fontSize:20}}>{c.emoji}</div>{c.name}</button>))}</div></div>
+            <div style={{marginBottom:16}}><label style={{fontSize:12,fontWeight:700,color:"#8A7B70",display:"block",marginBottom:4}}>Заметка</label><input value={newExpense.note} onChange={e=>setNewExpense(p=>({...p,note:e.target.value}))} placeholder="Доставка суши" style={{width:"100%",padding:"10px 14px",borderRadius:14,border:"2px solid rgba(0,0,0,.08)",fontSize:14,fontWeight:600,outline:"none"}}/></div>
+            <button onClick={addExpense} style={{width:"100%",padding:"12px 0",borderRadius:14,border:"none",background:"linear-gradient(135deg,#E8899A,#D4738A)",fontWeight:800,fontSize:14,color:"white",cursor:"pointer",fontFamily:"'Nunito',sans-serif",boxShadow:"0 4px 12px rgba(232,137,154,.3)",opacity:newExpense.amount?1:.5}}>Записать 📝</button>
+          </div></div>)}
+
+          {/* BOTTOM NAV */}
+          <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"rgba(255,255,255,.95)",backdropFilter:"blur(20px)",borderTop:"1px solid rgba(0,0,0,.06)",display:"flex",justifyContent:"space-around",padding:"6px 0 18px",zIndex:50}}>
+            {[{id:"home",emoji:"🏠",label:"Главная"},{id:"catalog",emoji:"📖",label:"Каталог"},{id:"goals",emoji:"🎯",label:"Цели"},{id:"tools",emoji:"🧰",label:"Инструменты"}].map(tab=>(
+              <button key={tab.id} className="nav-btn" onClick={()=>setScreen(tab.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"none",border:"none",cursor:"pointer",padding:"6px 12px"}}>
+                <span style={{fontSize:20,filter:screen===tab.id?"none":"grayscale(.5)",transform:screen===tab.id?"scale(1.15)":"scale(1)",transition:"all .2s ease"}}>{tab.emoji}</span>
+                <span style={{fontSize:9,fontWeight:800,color:screen===tab.id?"#E8899A":"#B0A598"}}>{tab.label}</span>
+                {screen===tab.id&&<div style={{width:4,height:4,borderRadius:2,background:"#E8899A",marginTop:1}}/>}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>

@@ -397,112 +397,100 @@ async function signOutUser() {
       </div>
     </div>
 
-    {/* Авторизация (отдельным блоком) */}
-    <div
-      style={{
-        marginTop: 10,
-        padding: "10px 12px",
-        borderRadius: 16,
-        background: "rgba(0,0,0,.02)",
-        border: "1px solid rgba(0,0,0,.05)",
-      }}
-    >
-      {user && !user.isAnonymous ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img
-            src={user.photoURL || "./icon.png"}
-            alt="avatar"
-            style={{ width: 34, height: 34, borderRadius: 12, objectFit: "cover" }}
-          />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontWeight: 800,
-                fontSize: 12,
-                color: "#4A3728",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {user.displayName || "Google user"}
-            </div>
-            <div style={{ fontSize: 10, color: "#A89080", fontWeight: 700 }}>Синхронизация ✅</div>
-          </div>
-          <button
-            className="action-btn"
-            onClick={signOutUser}
-            style={{
-              padding: "8px 10px",
-              borderRadius: 12,
-              border: "2px solid rgba(0,0,0,.08)",
-              background: "white",
-              fontWeight: 800,
-              fontSize: 11,
-              color: "#8A7B70",
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
-          >
-            Выйти
-          </button>
-        </div>
-      ) : (
-        <>
-          <button
-            className="action-btn"
-            onClick={signInWithGoogle}
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              borderRadius: 14,
-              border: "none",
-              background: "linear-gradient(135deg,#7B8EC4,#5E74B6)",
-              color: "white",
-              fontWeight: 900,
-              fontSize: 12,
-              cursor: "pointer",
-              fontFamily: "'Nunito',sans-serif",
-              boxShadow: "0 6px 16px rgba(123,142,196,.25)",
-            }}
-          >
-            🔐 Войти через Google
-          </button>
-          <div style={{ marginTop: 8, fontSize: 10, color: "#A89080", fontWeight: 600, lineHeight: 1.3 }}>
-            {user && user.isAnonymous
-              ? "Сейчас ты гость. Вход через Google сохранит прогресс на всех устройствах."
-              : " "}
-          </div>
-        </>
-      )}
-    </div>
-
-    {/* Баланс */}
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        margin: "16px 0 8px",
-        padding: "8px 12px",
-        background: "rgba(255,217,61,.1)",
-        borderRadius: 14,
-      }}
-    >
-    <div
+    {/* Авторизация */}
+<div
   style={{
+    marginTop: 10,
+    padding: "10px 12px",
+    borderRadius: 16,
+    background: "rgba(0,0,0,.02)",
+    border: "1px solid rgba(0,0,0,.05)",
+  }}
+>
+  {user && !user.isAnonymous ? (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <img
+        src={user.photoURL || "./icon.png"}
+        alt="avatar"
+        style={{ width: 34, height: 34, borderRadius: 12, objectFit: "cover" }}
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontWeight: 800,
+            fontSize: 12,
+            color: "#4A3728",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {user.displayName || "Google user"}
+        </div>
+        <div style={{ fontSize: 10, color: "#A89080", fontWeight: 700 }}>Синхронизация ✅</div>
+      </div>
+      <button
+        className="action-btn"
+        onClick={signOutUser}
+        style={{
+          padding: "8px 10px",
+          borderRadius: 12,
+          border: "2px solid rgba(0,0,0,.08)",
+          background: "white",
+          fontWeight: 800,
+          fontSize: 11,
+          color: "#8A7B70",
+          cursor: "pointer",
+          flexShrink: 0,
+        }}
+      >
+        Выйти
+      </button>
+    </div>
+  ) : (
+    <>
+      <button
+        className="action-btn"
+        onClick={signInWithGoogle}
+        style={{
+          width: "100%",
+          padding: "10px 12px",
+          borderRadius: 14,
+          border: "none",
+          background: "linear-gradient(135deg,#7B8EC4,#5E74B6)",
+          color: "white",
+          fontWeight: 900,
+          fontSize: 12,
+          cursor: "pointer",
+          fontFamily: "'Nunito',sans-serif",
+          boxShadow: "0 6px 16px rgba(123,142,196,.25)",
+        }}
+      >
+        🔐 Войти через Google
+      </button>
+      <div style={{ marginTop: 8, fontSize: 10, color: "#A89080", fontWeight: 600, lineHeight: 1.3 }}>
+        {user && user.isAnonymous ? "Сейчас ты гость. Вход через Google сохранит прогресс на всех устройствах." : " "}
+      </div>
+    </>
+  )}
+</div>
+
+{/* Слоты (отдельно, НЕ внутри баланса) */}
+<div
+  style={{
+    marginTop: 10,
     marginBottom: 12,
     padding: "10px 12px",
     borderRadius: 16,
     background: "rgba(255,179,71,.08)",
-    border: "1px solid rgba(255,179,71,.15)"
+    border: "1px solid rgba(255,179,71,.15)",
   }}
 >
-  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-    <div style={{fontSize:11,fontWeight:900,color:"#7A6B55"}}>
+  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div style={{ fontSize: 11, fontWeight: 900, color: "#7A6B55" }}>
       🎟️ Слоты: {myHabits.length}/{maxHabits}
     </div>
-    <div style={{fontSize:10,fontWeight:800,color:"#A89080"}}>
+    <div style={{ fontSize: 10, fontWeight: 800, color: "#A89080" }}>
       осталось {slotsLeft}
     </div>
   </div>
@@ -521,53 +509,63 @@ async function signOutUser() {
       fontWeight: 900,
       fontSize: 12,
       fontFamily: "'Nunito',sans-serif",
-      background: coins < EXTRA_SLOT_PRICE
-        ? "rgba(0,0,0,.06)"
-        : "linear-gradient(135deg,#FFD93D,#FFB347)",
+      background: coins < EXTRA_SLOT_PRICE ? "rgba(0,0,0,.06)" : "linear-gradient(135deg,#FFD93D,#FFB347)",
       color: coins < EXTRA_SLOT_PRICE ? "#A89080" : "#5D4E37",
-      boxShadow: coins < EXTRA_SLOT_PRICE ? "none" : "0 6px 16px rgba(255,179,71,.25)"
+      boxShadow: coins < EXTRA_SLOT_PRICE ? "none" : "0 6px 16px rgba(255,179,71,.25)",
     }}
   >
     +1 слот за {EXTRA_SLOT_PRICE} 🪙
   </button>
 
   {coins < EXTRA_SLOT_PRICE && (
-    <div style={{marginTop:6,fontSize:10,color:"#A89080",fontWeight:700,lineHeight:1.3}}>
+    <div style={{ marginTop: 6, fontSize: 10, color: "#A89080", fontWeight: 700, lineHeight: 1.3 }}>
       Не хватает {EXTRA_SLOT_PRICE - coins} монет
     </div>
   )}
 </div>
-      <CoinIcon size={18} />
-      <span style={{ fontWeight: 800, fontSize: 15, color: "#B8860B" }}>{coins}</span>
-      <div style={{ flex: 1, height: 5, background: "rgba(0,0,0,.06)", borderRadius: 3, marginLeft: 8 }}>
-        <div
-          style={{
-            width: `${(xp / 30) * 100}%`,
-            height: "100%",
-            background: "linear-gradient(90deg,#FFB5C2,#FFD93D)",
-            borderRadius: 3,
-            transition: "width .5s ease",
-          }}
-        />
-      </div>
-      <div
-        style={{
-          background: "linear-gradient(135deg,#E8899A,#D4738A)",
-          color: "white",
-          borderRadius: 10,
-          width: 28,
-          height: 28,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontWeight: 800,
-          fontSize: 13,
-        }}
-      >
-        {level}
-      </div>
-    </div>
 
+{/* Баланс */}
+<div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    margin: "16px 0 8px",
+    padding: "8px 12px",
+    background: "rgba(255,217,61,.1)",
+    borderRadius: 14,
+  }}
+>
+  <CoinIcon size={18} />
+  <span style={{ fontWeight: 800, fontSize: 15, color: "#B8860B" }}>{coins}</span>
+  <div style={{ flex: 1, height: 5, background: "rgba(0,0,0,.06)", borderRadius: 3, marginLeft: 8 }}>
+    <div
+      style={{
+        width: `${(xp / 30) * 100}%`,
+        height: "100%",
+        background: "linear-gradient(90deg,#FFB5C2,#FFD93D)",
+        borderRadius: 3,
+        transition: "width .5s ease",
+      }}
+    />
+  </div>
+  <div
+    style={{
+      background: "linear-gradient(135deg,#E8899A,#D4738A)",
+      color: "white",
+      borderRadius: 10,
+      width: 28,
+      height: 28,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontWeight: 800,
+      fontSize: 13,
+    }}
+  >
+    {level}
+  </div>
+</div>
     {/* Навигация */}
     <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 4 }}>
       {TABS.map((t) => (
@@ -610,7 +608,7 @@ async function signOutUser() {
   </div>
 )}
 
-          {/* MOBILE HEADER */}
+{/* MOBILE HEADER */}
 {!isD && (
   <div
     style={{
@@ -619,18 +617,17 @@ async function signOutUser() {
       borderBottom: "1px solid rgba(255,181,194,.2)",
     }}
   >
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-      {/* Left: logo + title */}
+    {/* Row 1: logo + right controls */}
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+      {/* Left */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-        <div>
-          <img src="./icon.png" style={{ width: 70, height: 70, borderRadius: 14 }} alt="goal" />
-        </div>
+        <img src="./icon.png" style={{ width: 56, height: 56, borderRadius: 14 }} alt="goal" />
         <div style={{ minWidth: 0 }}>
           <div
             style={{
               fontFamily: "'Comfortaa',cursive",
               fontWeight: 700,
-              fontSize: 20,
+              fontSize: 18,
               background: "linear-gradient(90deg,#E8899A,#FFB347,#E8899A)",
               backgroundSize: "200% auto",
               WebkitBackgroundClip: "text",
@@ -639,7 +636,7 @@ async function signOutUser() {
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
-              maxWidth: 140,
+              maxWidth: 150,
             }}
           >
             В копилке
@@ -650,9 +647,9 @@ async function signOutUser() {
         </div>
       </div>
 
-      {/* Right: auth + coins + level */}
+      {/* Right */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        {/* Auth button */}
+        {/* Auth */}
         {user && !user.isAnonymous ? (
           <button
             onClick={signOutUser}
@@ -684,6 +681,7 @@ async function signOutUser() {
               cursor: "pointer",
               fontFamily: "'Nunito',sans-serif",
               boxShadow: "0 6px 14px rgba(123,142,196,.18)",
+              whiteSpace: "nowrap",
             }}
           >
             Google
@@ -699,6 +697,7 @@ async function signOutUser() {
             background: "rgba(255,217,61,.2)",
             borderRadius: 16,
             padding: "4px 10px",
+            whiteSpace: "nowrap",
           }}
         >
           <CoinIcon size={14} />
@@ -718,6 +717,7 @@ async function signOutUser() {
             justifyContent: "center",
             fontWeight: 800,
             fontSize: 13,
+            flexShrink: 0,
           }}
         >
           {level}
@@ -725,14 +725,60 @@ async function signOutUser() {
       </div>
     </div>
 
-    {/* Optional: small hint for guest */}
+    {/* Row 2: Slots card */}
+    <div
+      style={{
+        marginTop: 10,
+        padding: "10px 12px",
+        borderRadius: 16,
+        background: "rgba(255,255,255,.7)",
+        border: "1px solid rgba(0,0,0,.05)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 800, color: "#A89080" }}>
+          🎟️ Слоты: {myHabits.length}/{FREE_HABIT_SLOTS + extraSlots}
+        </div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#B0A598", marginTop: 2 }}>
+          осталось {Math.max(0, (FREE_HABIT_SLOTS + extraSlots) - myHabits.length)}
+        </div>
+      </div>
+
+      <button
+        className="action-btn"
+        onClick={buySlot}
+        disabled={coins < EXTRA_SLOT_PRICE}
+        style={{
+          border: "none",
+          borderRadius: 14,
+          padding: "10px 12px",
+          fontWeight: 900,
+          fontSize: 12,
+          cursor: coins < EXTRA_SLOT_PRICE ? "not-allowed" : "pointer",
+          fontFamily: "'Nunito',sans-serif",
+          background:
+            coins < EXTRA_SLOT_PRICE ? "rgba(0,0,0,.06)" : "linear-gradient(135deg,#FFD93D,#FFB347)",
+          color: coins < EXTRA_SLOT_PRICE ? "#A89080" : "#5D4E37",
+          boxShadow: coins < EXTRA_SLOT_PRICE ? "none" : "0 6px 14px rgba(255,179,71,.22)",
+          whiteSpace: "nowrap",
+          flexShrink: 0,
+        }}
+      >
+        +1 слот за {EXTRA_SLOT_PRICE} 🪙
+      </button>
+    </div>
+
+    {/* Optional guest hint */}
     {user && user.isAnonymous && (
       <div style={{ marginTop: 8, fontSize: 10, color: "#A89080", fontWeight: 600, lineHeight: 1.3 }}>
         Ты гость — войди через Google, чтобы прогресс сохранился на всех устройствах.
       </div>
     )}
   </div>
-  
 )}
 
           {showAch&&<div style={{position:"fixed",top:80,left:"50%",transform:"translateX(-50%)",zIndex:999,animation:"popIn .4s ease"}}><div style={{background:"linear-gradient(135deg,#FFD93D,#FFB347)",borderRadius:20,padding:"16px 28px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 8px 32px rgba(255,179,71,.4)"}}><span style={{fontSize:36}}>{showAch.emoji}</span><div><div style={{fontWeight:800,color:"#5D4E37",fontSize:15}}>Достижение!</div><div style={{fontWeight:600,color:"#7A6B55",fontSize:13}}>{showAch.title}</div></div></div></div>}

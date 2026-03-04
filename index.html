@@ -144,49 +144,51 @@
       const[quizIdx,setQuizIdx]=useState(0);const[quizAns,setQuizAns]=useState(null);const[quizScore,setQuizScore]=useState(0);const[quizDone,setQuizDone]=useState(false);
       const[expenses,setExpenses]=useState([]);const[showAddExp,setShowAddExp]=useState(false);const[newExp,setNewExp]=useState({amount:"",category:"food",note:""});
 
-      useEffect(() => {
-        (async () => {
-          const userId = await ensureAuth();
-          setUid(userId);
+          useEffect(() => {
+      (async () => {
+        const userId = await ensureAuth();
+        setUid(userId);
 
-          const ref = db.collection("users").doc(userId);
-          const snap = await ref.get();
+        const ref = db.collection("users").doc(userId);
+        const snap = await ref.get();
 
-          if (snap.exists) {
-            const data = snap.data();
+        if (snap.exists) {
+          const data = snap.data();
 
-            setCoins(data.coins ?? 0);
-            setTotalSaved(data.totalSaved ?? 0);
-            setStreak(data.streak ?? 0);
+          setCoins(data.coins ?? 0);
+          setTotalSaved(data.totalSaved ?? 0);
+          setStreak(data.streak ?? 0);
 
-            setMyHabits(data.myHabits ?? initialHabits);
-            setCustomHabits(data.customHabits ?? []);
-            setCheckedToday(data.checkedToday ?? {});
-            setUnlockedAch(data.unlockedAch ?? []);
-            setGoals(data.goals ?? []);
-            setActiveCh(data.activeCh ?? {});
-            setExpenses(data.expenses ?? []);
-          } else {
-            // если первый запуск — создаём документ
-            await ref.set({
-              coins,
-              totalSaved,
-              streak,
-              myHabits: initialHabits,
-              customHabits: [],
-              checkedToday: {},
-              unlockedAch: [],
-              goals: [],
-              activeCh: {},
-              expenses: [],
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-          }
+          setMyHabits(data.myHabits ?? []);
+          setCustomHabits(data.customHabits ?? []);
+          setCheckedToday(data.checkedToday ?? {});
+          setUnlockedAch(data.unlockedAch ?? []);
 
-          setCloudReady(true);
-        })();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, []);
+          setGoals(data.goals ?? [{ id:"g1", title:"Подушка безопасности", emoji:"🛡️", target:100000, saved:0 }]);
+          setActiveCh(data.activeCh ?? {});
+          setExpenses(data.expenses ?? []);
+        } else {
+          await ref.set({
+            coins: 0,
+            totalSaved: 0,
+            streak: 0,
+
+            myHabits: [],
+            customHabits: [],
+            checkedToday: {},
+            unlockedAch: [],
+
+            goals: [{ id:"g1", title:"Подушка безопасности", emoji:"🛡️", target:100000, saved:0 }],
+            activeCh: {},
+            expenses: [],
+
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+
+        setCloudReady(true);
+      })().catch((e) => console.error("Firebase init/load failed:", e));
+    }, []);
       useEffect(()=>{const t=setInterval(()=>setTipIndex(p=>(p+1)%TIPS.length),8000);return()=>clearInterval(t)},[]);
       useEffect(()=>{ACHIEVEMENTS.forEach(a=>{if(unlockedAch.includes(a.id))return;let ok=false;if(a.type==="habits"&&myHabits.length>=a.need)ok=true;if(a.type==="streak"&&streak>=a.need)ok=true;if(a.type==="savings"&&totalSaved>=a.need)ok=true;if(ok){setUnlockedAch(p=>[...p,a.id]);setShowAch(a);setCoins(p=>p+10);setTimeout(()=>setShowAch(null),3000)}})},[myHabits.length,streak,totalSaved]);
 

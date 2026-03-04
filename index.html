@@ -81,7 +81,7 @@
         t = setTimeout(() => fn(...args), ms);
       };
     }
-    const {useState,useEffect} = React;
+    const {useState,useEffect,useMemo} = React;
 
     const HABITS_LIBRARY=[
       {id:"h1",title:"Правило 24 часов",emoji:"⏳",desc:"Перед покупкой дороже 2000₽ — подожди сутки.",science:"Journal of Consumer Research: задержка снижает эмоциональную привязку к покупке.",category:"траты",difficulty:1,savingsPerMonth:3000},

@@ -56,22 +56,81 @@
 
     const auth = firebase.auth();
     const db = firebase.firestore();
+    // Google provider
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+// можно запросить email/профиль (по умолчанию и так)
+googleProvider.setCustomParameters({ prompt: "select_account" });
+
+// Важно: чтобы сессия не слетала
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(console.error);
+
+// Универсальный вход (popup -> если нельзя, то redirect)
+async function signInWithGoogle() {
+  try {
+    // если уже есть пользователь (обычно анонимный) — привязываем Google к нему
+    const user = auth.currentUser;
+    if (user && user.isAnonymous) {
+      try {
+        // пробуем привязать через popup
+        const cred = await user.linkWithPopup(googleProvider);
+        return cred.user;
+      } catch (e) {
+        // если popup заблокирован/не поддержан — редирект
+        if (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment") {
+          await user.linkWithRedirect(googleProvider);
+          return null; // после редиректа страница перезагрузится
+        }
+        // если этот Google уже привязан к другому аккаунту
+        if (e.code === "auth/credential-already-in-use") {
+          // тогда просто входим этим Google (данные будут в другом uid)
+          const res = await auth.signInWithPopup(googleProvider).catch(async (err) => {
+            if (err.code === "auth/popup-blocked" || err.code === "auth/operation-not-supported-in-this-environment") {
+              await auth.signInWithRedirect(googleProvider);
+              return null;
+            }
+            throw err;
+          });
+          return res?.user || null;
+        }
+        throw e;
+      }
+    }
+
+    // если пользователя нет / он уже не анонимный — обычный вход
+    const res = await auth.signInWithPopup(googleProvider).catch(async (e) => {
+      if (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment") {
+        await auth.signInWithRedirect(googleProvider);
+        return null;
+      }
+      throw e;
+    });
+    return res?.user || null;
+  } catch (e) {
+    console.error("Google sign-in failed:", e);
+    alert("Не получилось войти через Google. Открой консоль — там будет причина.");
+    return null;
+  }
+}
+
+async function signOutUser() {
+  await auth.signOut();
+}
 
     // Анонимная авторизация (чтобы у каждого был свой uid и своя копилка)
     async function ensureAuth() {
-      if (auth.currentUser) return auth.currentUser.uid;
+  if (auth.currentUser) return auth.currentUser.uid;
 
-      const existingUid = await new Promise((resolve) => {
-        const unsub = auth.onAuthStateChanged((u) => {
-          unsub();
-          resolve(u?.uid || null);
-        });
-      });
-      if (existingUid) return existingUid;
+  const existingUid = await new Promise((resolve) => {
+    const unsub = auth.onAuthStateChanged((u) => {
+      unsub();
+      resolve(u?.uid || null);
+    });
+  });
+  if (existingUid) return existingUid;
 
-      const res = await auth.signInAnonymously();
-      return res.user.uid;
-    }
+  const res = await auth.signInAnonymously();
+  return res.user.uid;
+}
 
     // Debounce чтобы не спамить записью при каждом клике
     function debounce(fn, ms = 400) {
@@ -125,6 +184,8 @@
     function CoinIcon({size=20}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#FFD93D" stroke="#F0B90B" strokeWidth="2"/><text x="12" y="16" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#B8860B">₽</text></svg>)}
     function PiggyBank({size=80,fillPct=0}){const s=1+fillPct*.35,ch=3+fillPct*2,col=fillPct>.7?"#FFD93D":fillPct>.3?"#FFCAD4":"#FFB5C2";return(<svg width={size} height={size} viewBox="0 0 100 100" fill="none"><g transform={`translate(50,52) scale(${s}) translate(-50,-52)`}><ellipse cx="50" cy="52" rx="32" ry="26" fill={col} stroke="#E8899A" strokeWidth="2.5"/><circle cx="38" cy="44" r="2.5" fill="#333"/><circle cx="38" cy="44" r="1" fill="#fff"/><ellipse cx="62" cy="54" rx={ch+2} ry={ch} fill="#FF9AAF" stroke="#E8899A" strokeWidth="1.5"/><circle cx="60.5" cy="53" r="1.2" fill="#E8899A"/><circle cx="63.5" cy="53" r="1.2" fill="#E8899A"/><path d="M26 68 L22 80" stroke="#E8899A" strokeWidth="3" strokeLinecap="round"/><path d="M38 72 L36 80" stroke="#E8899A" strokeWidth="3" strokeLinecap="round"/><path d="M62 72 L64 80" stroke="#E8899A" strokeWidth="3" strokeLinecap="round"/><path d="M74 68 L78 80" stroke="#E8899A" strokeWidth="3" strokeLinecap="round"/><path d="M30 36 Q26 24 34 28" stroke="#E8899A" strokeWidth="2.5" fill={col}/><path d="M42 34 Q44 22 48 30" stroke="#E8899A" strokeWidth="2.5" fill={col}/></g><rect x="38" y={28-fillPct*4} rx="3" ry="2" width="16" height="6" fill="#FFD93D" stroke="#F0B90B" strokeWidth="1.5"/>{fillPct>.5&&<text x="50" y="18" textAnchor="middle" fontSize="14">✨</text>}{fillPct>=1&&<text x="50" y="10" textAnchor="middle" fontSize="12">🎉</text>}</svg>)}
     function useWidth(){const[w,setW]=useState(window.innerWidth);useEffect(()=>{const h=()=>setW(window.innerWidth);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h)},[]);return w}
+    // Если вход был через redirect (часто на мобилках), забираем результат
+    auth.getRedirectResult().catch((e) => console.error("Redirect result error:", e));
 
     function App(){
       const w=useWidth();const isD=w>=900;const isW=w>=1200;
@@ -143,6 +204,12 @@
       const[activeCh,setActiveCh]=useState({});
       const[quizIdx,setQuizIdx]=useState(0);const[quizAns,setQuizAns]=useState(null);const[quizScore,setQuizScore]=useState(0);const[quizDone,setQuizDone]=useState(false);
       const[expenses,setExpenses]=useState([]);const[showAddExp,setShowAddExp]=useState(false);const[newExp,setNewExp]=useState({amount:"",category:"food",note:""});
+      const [user, setUser] = useState(null);
+
+useEffect(() => {
+  const unsub = auth.onAuthStateChanged((u) => setUser(u || null));
+  return () => unsub();
+}, []);
 
           useEffect(() => {
       (async () => {
@@ -255,31 +322,335 @@
       return(
         <div>
           {/* SIDEBAR desktop */}
-          {isD&&<div style={{width:240,minHeight:"100vh",background:"rgba(255,255,255,.75)",backdropFilter:"blur(20px)",borderRight:"1px solid rgba(0,0,0,.06)",padding:"24px 16px",position:"fixed",left:0,top:0,zIndex:40,display:"flex",flexDirection:"column"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-              <div><img src="./icon.png" style={{width:70,height:70,borderRadius:14}} alt="goal"/></div>
-              <div><div style={{fontFamily:"'Comfortaa',cursive",fontWeight:700,fontSize:20,background:"linear-gradient(90deg,#E8899A,#FFB347,#E8899A)",backgroundSize:"200% auto",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",animation:"shimmer 3s linear infinite"}}>В копилке</div><div style={{fontSize:10,color:"#A89080",fontWeight:600}}>трекер привычек</div></div>
+          {isD && (
+  <div
+    style={{
+      width: 240,
+      minHeight: "100vh",
+      background: "rgba(255,255,255,.75)",
+      backdropFilter: "blur(20px)",
+      borderRight: "1px solid rgba(0,0,0,.06)",
+      padding: "24px 16px",
+      position: "fixed",
+      left: 0,
+      top: 0,
+      zIndex: 40,
+      display: "flex",
+      flexDirection: "column",
+    }}
+  >
+    {/* Лого */}
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+      <div>
+        <img src="./icon.png" style={{ width: 70, height: 70, borderRadius: 14 }} alt="goal" />
+      </div>
+      <div>
+        <div
+          style={{
+            fontFamily: "'Comfortaa',cursive",
+            fontWeight: 700,
+            fontSize: 20,
+            background: "linear-gradient(90deg,#E8899A,#FFB347,#E8899A)",
+            backgroundSize: "200% auto",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            animation: "shimmer 3s linear infinite",
+          }}
+        >
+          В копилке
+        </div>
+        <div style={{ fontSize: 10, color: "#A89080", fontWeight: 600 }}>трекер привычек</div>
+      </div>
+    </div>
+
+    {/* Авторизация (отдельным блоком) */}
+    <div
+      style={{
+        marginTop: 10,
+        padding: "10px 12px",
+        borderRadius: 16,
+        background: "rgba(0,0,0,.02)",
+        border: "1px solid rgba(0,0,0,.05)",
+      }}
+    >
+      {user && !user.isAnonymous ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <img
+            src={user.photoURL || "./icon.png"}
+            alt="avatar"
+            style={{ width: 34, height: 34, borderRadius: 12, objectFit: "cover" }}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: 12,
+                color: "#4A3728",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {user.displayName || "Google user"}
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:8,margin:"16px 0 8px",padding:"8px 12px",background:"rgba(255,217,61,.1)",borderRadius:14}}>
-              <CoinIcon size={18}/><span style={{fontWeight:800,fontSize:15,color:"#B8860B"}}>{coins}</span>
-              <div style={{flex:1,height:5,background:"rgba(0,0,0,.06)",borderRadius:3,marginLeft:8}}><div style={{width:`${xp/30*100}%`,height:"100%",background:"linear-gradient(90deg,#FFB5C2,#FFD93D)",borderRadius:3,transition:"width .5s ease"}}/></div>
-              <div style={{background:"linear-gradient(135deg,#E8899A,#D4738A)",color:"white",borderRadius:10,width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13}}>{level}</div>
-            </div>
-            <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:4}}>
-              {TABS.map(t=>(<button key={t.id} className="sidebar-item" onClick={()=>setScreen(t.id)} style={{padding:"12px 16px",borderRadius:14,display:"flex",alignItems:"center",gap:12,background:screen===t.id?"rgba(232,137,154,.1)":"transparent",borderLeft:screen===t.id?"3px solid #E8899A":"3px solid transparent"}}><span style={{fontSize:20}}>{t.emoji}</span><span style={{fontWeight:screen===t.id?800:600,fontSize:14,color:screen===t.id?"#D4738A":"#8A7B70"}}>{t.label}</span></button>))}
-            </div>
-            <div style={{marginTop:"auto",padding:"16px 12px",background:"rgba(144,205,244,.08)",borderRadius:16}}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:700,color:"#8A7B70"}}><span>🔥 {streak}</span><span>📋 {myHabits.length}</span><span>💰 {totalSaved>=1000?`${(totalSaved/1000).toFixed(1)}к`:totalSaved}₽</span></div>
-            </div>
-          </div>}
+            <div style={{ fontSize: 10, color: "#A89080", fontWeight: 700 }}>Синхронизация ✅</div>
+          </div>
+          <button
+            className="action-btn"
+            onClick={signOutUser}
+            style={{
+              padding: "8px 10px",
+              borderRadius: 12,
+              border: "2px solid rgba(0,0,0,.08)",
+              background: "white",
+              fontWeight: 800,
+              fontSize: 11,
+              color: "#8A7B70",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            Выйти
+          </button>
+        </div>
+      ) : (
+        <>
+          <button
+            className="action-btn"
+            onClick={signInWithGoogle}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 14,
+              border: "none",
+              background: "linear-gradient(135deg,#7B8EC4,#5E74B6)",
+              color: "white",
+              fontWeight: 900,
+              fontSize: 12,
+              cursor: "pointer",
+              fontFamily: "'Nunito',sans-serif",
+              boxShadow: "0 6px 16px rgba(123,142,196,.25)",
+            }}
+          >
+            🔐 Войти через Google
+          </button>
+          <div style={{ marginTop: 8, fontSize: 10, color: "#A89080", fontWeight: 600, lineHeight: 1.3 }}>
+            {user && user.isAnonymous
+              ? "Сейчас ты гость. Вход через Google сохранит прогресс на всех устройствах."
+              : " "}
+          </div>
+        </>
+      )}
+    </div>
+
+    {/* Баланс */}
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        margin: "16px 0 8px",
+        padding: "8px 12px",
+        background: "rgba(255,217,61,.1)",
+        borderRadius: 14,
+      }}
+    >
+      <CoinIcon size={18} />
+      <span style={{ fontWeight: 800, fontSize: 15, color: "#B8860B" }}>{coins}</span>
+      <div style={{ flex: 1, height: 5, background: "rgba(0,0,0,.06)", borderRadius: 3, marginLeft: 8 }}>
+        <div
+          style={{
+            width: `${(xp / 30) * 100}%`,
+            height: "100%",
+            background: "linear-gradient(90deg,#FFB5C2,#FFD93D)",
+            borderRadius: 3,
+            transition: "width .5s ease",
+          }}
+        />
+      </div>
+      <div
+        style={{
+          background: "linear-gradient(135deg,#E8899A,#D4738A)",
+          color: "white",
+          borderRadius: 10,
+          width: 28,
+          height: 28,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontWeight: 800,
+          fontSize: 13,
+        }}
+      >
+        {level}
+      </div>
+    </div>
+
+    {/* Навигация */}
+    <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 4 }}>
+      {TABS.map((t) => (
+        <button
+          key={t.id}
+          className="sidebar-item"
+          onClick={() => setScreen(t.id)}
+          style={{
+            padding: "12px 16px",
+            borderRadius: 14,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            background: screen === t.id ? "rgba(232,137,154,.1)" : "transparent",
+            borderLeft: screen === t.id ? "3px solid #E8899A" : "3px solid transparent",
+          }}
+        >
+          <span style={{ fontSize: 20 }}>{t.emoji}</span>
+          <span
+            style={{
+              fontWeight: screen === t.id ? 800 : 600,
+              fontSize: 14,
+              color: screen === t.id ? "#D4738A" : "#8A7B70",
+            }}
+          >
+            {t.label}
+          </span>
+        </button>
+      ))}
+    </div>
+
+    {/* Футер */}
+    <div style={{ marginTop: "auto", padding: "16px 12px", background: "rgba(144,205,244,.08)", borderRadius: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 700, color: "#8A7B70" }}>
+        <span>🔥 {streak}</span>
+        <span>📋 {myHabits.length}</span>
+        <span>💰 {totalSaved >= 1000 ? `${(totalSaved / 1000).toFixed(1)}к` : totalSaved}₽</span>
+      </div>
+    </div>
+  </div>
+)}
 
           {/* MOBILE HEADER */}
-          {!isD&&<div style={{padding:"16px 20px 12px",background:"linear-gradient(135deg,rgba(255,181,194,.15),rgba(255,217,61,.1))",borderBottom:"1px solid rgba(255,181,194,.2)"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{display:"flex",alignItems:"center",gap:10}}><div><img src="./icon.png" style={{width:70,height:70,borderRadius:14}} alt="goal"/></div><div><div style={{fontFamily:"'Comfortaa',cursive",fontWeight:700,fontSize:20,background:"linear-gradient(90deg,#E8899A,#FFB347,#E8899A)",backgroundSize:"200% auto",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",animation:"shimmer 3s linear infinite"}}>В копилке</div><div style={{fontSize:10,color:"#A89080",fontWeight:600}}>трекер привычек</div></div></div>
-              <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{display:"flex",alignItems:"center",gap:4,background:"rgba(255,217,61,.2)",borderRadius:16,padding:"4px 10px"}}><CoinIcon size={14}/><span style={{fontWeight:800,fontSize:13,color:"#B8860B"}}>{coins}</span></div><div style={{background:"linear-gradient(135deg,#E8899A,#D4738A)",color:"white",borderRadius:10,width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13}}>{level}</div></div>
-            </div>
-          </div>}
+{!isD && (
+  <div
+    style={{
+      padding: "16px 20px 12px",
+      background: "linear-gradient(135deg,rgba(255,181,194,.15),rgba(255,217,61,.1))",
+      borderBottom: "1px solid rgba(255,181,194,.2)",
+    }}
+  >
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+      {/* Left: logo + title */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        <div>
+          <img src="./icon.png" style={{ width: 70, height: 70, borderRadius: 14 }} alt="goal" />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: "'Comfortaa',cursive",
+              fontWeight: 700,
+              fontSize: 20,
+              background: "linear-gradient(90deg,#E8899A,#FFB347,#E8899A)",
+              backgroundSize: "200% auto",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              animation: "shimmer 3s linear infinite",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: 140,
+            }}
+          >
+            В копилке
+          </div>
+          <div style={{ fontSize: 10, color: "#A89080", fontWeight: 600, whiteSpace: "nowrap" }}>
+            трекер привычек
+          </div>
+        </div>
+      </div>
+
+      {/* Right: auth + coins + level */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        {/* Auth button */}
+        {user && !user.isAnonymous ? (
+          <button
+            onClick={signOutUser}
+            style={{
+              border: "none",
+              background: "rgba(0,0,0,.04)",
+              borderRadius: 12,
+              padding: "6px 10px",
+              fontWeight: 900,
+              fontSize: 11,
+              color: "#8A7B70",
+              cursor: "pointer",
+              fontFamily: "'Nunito',sans-serif",
+            }}
+          >
+            Выйти
+          </button>
+        ) : (
+          <button
+            onClick={signInWithGoogle}
+            style={{
+              border: "none",
+              background: "linear-gradient(135deg,#7B8EC4,#5E74B6)",
+              color: "white",
+              borderRadius: 12,
+              padding: "6px 10px",
+              fontWeight: 900,
+              fontSize: 11,
+              cursor: "pointer",
+              fontFamily: "'Nunito',sans-serif",
+              boxShadow: "0 6px 14px rgba(123,142,196,.18)",
+            }}
+          >
+            Google
+          </button>
+        )}
+
+        {/* Coins */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            background: "rgba(255,217,61,.2)",
+            borderRadius: 16,
+            padding: "4px 10px",
+          }}
+        >
+          <CoinIcon size={14} />
+          <span style={{ fontWeight: 800, fontSize: 13, color: "#B8860B" }}>{coins}</span>
+        </div>
+
+        {/* Level */}
+        <div
+          style={{
+            background: "linear-gradient(135deg,#E8899A,#D4738A)",
+            color: "white",
+            borderRadius: 10,
+            width: 28,
+            height: 28,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 800,
+            fontSize: 13,
+          }}
+        >
+          {level}
+        </div>
+      </div>
+    </div>
+
+    {/* Optional: small hint for guest */}
+    {user && user.isAnonymous && (
+      <div style={{ marginTop: 8, fontSize: 10, color: "#A89080", fontWeight: 600, lineHeight: 1.3 }}>
+        Ты гость — войди через Google, чтобы прогресс сохранился на всех устройствах.
+      </div>
+    )}
+  </div>
+)}
 
           {showAch&&<div style={{position:"fixed",top:80,left:"50%",transform:"translateX(-50%)",zIndex:999,animation:"popIn .4s ease"}}><div style={{background:"linear-gradient(135deg,#FFD93D,#FFB347)",borderRadius:20,padding:"16px 28px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 8px 32px rgba(255,179,71,.4)"}}><span style={{fontSize:36}}>{showAch.emoji}</span><div><div style={{fontWeight:800,color:"#5D4E37",fontSize:15}}>Достижение!</div><div style={{fontWeight:600,color:"#7A6B55",fontSize:13}}>{showAch.title}</div></div></div></div>}
           {coinAnim&&<div style={{position:"fixed",top:16,right:80,zIndex:998,animation:"floatCoin .6s ease forwards",pointerEvents:"none"}}><CoinIcon size={28}/></div>}

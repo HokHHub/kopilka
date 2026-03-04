@@ -180,6 +180,8 @@ async function signOutUser() {
       {q:"Инвестировать можно только с больших сумм",a:false,explain:"Можно с 1000₽. Главное — регулярность."},
     ];
     const EXPENSE_CATEGORIES=[{id:"food",emoji:"🍔",name:"Еда"},{id:"transport",emoji:"🚕",name:"Транспорт"},{id:"fun",emoji:"🎮",name:"Развлечения"},{id:"clothes",emoji:"👕",name:"Одежда"},{id:"health",emoji:"💊",name:"Здоровье"},{id:"other",emoji:"📎",name:"Другое"}];
+    const FREE_HABIT_SLOTS = 2;     // сколько привычек можно добавить бесплатно
+    const EXTRA_SLOT_PRICE = 50;    // цена за +1 слот
 
     function CoinIcon({size=20}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#FFD93D" stroke="#F0B90B" strokeWidth="2"/><text x="12" y="16" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#B8860B">₽</text></svg>)}
     function PiggyBank({size=80,fillPct=0}){const s=1+fillPct*.35,ch=3+fillPct*2,col=fillPct>.7?"#FFD93D":fillPct>.3?"#FFCAD4":"#FFB5C2";return(<svg width={size} height={size} viewBox="0 0 100 100" fill="none"><g transform={`translate(50,52) scale(${s}) translate(-50,-52)`}><ellipse cx="50" cy="52" rx="32" ry="26" fill={col} stroke="#E8899A" strokeWidth="2.5"/><circle cx="38" cy="44" r="2.5" fill="#333"/><circle cx="38" cy="44" r="1" fill="#fff"/><ellipse cx="62" cy="54" rx={ch+2} ry={ch} fill="#FF9AAF" stroke="#E8899A" strokeWidth="1.5"/><circle cx="60.5" cy="53" r="1.2" fill="#E8899A"/><circle cx="63.5" cy="53" r="1.2" fill="#E8899A"/><path d="M26 68 L22 80" stroke="#E8899A" strokeWidth="3" strokeLinecap="round"/><path d="M38 72 L36 80" stroke="#E8899A" strokeWidth="3" strokeLinecap="round"/><path d="M62 72 L64 80" stroke="#E8899A" strokeWidth="3" strokeLinecap="round"/><path d="M74 68 L78 80" stroke="#E8899A" strokeWidth="3" strokeLinecap="round"/><path d="M30 36 Q26 24 34 28" stroke="#E8899A" strokeWidth="2.5" fill={col}/><path d="M42 34 Q44 22 48 30" stroke="#E8899A" strokeWidth="2.5" fill={col}/></g><rect x="38" y={28-fillPct*4} rx="3" ry="2" width="16" height="6" fill="#FFD93D" stroke="#F0B90B" strokeWidth="1.5"/>{fillPct>.5&&<text x="50" y="18" textAnchor="middle" fontSize="14">✨</text>}{fillPct>=1&&<text x="50" y="10" textAnchor="middle" fontSize="12">🎉</text>}</svg>)}
@@ -205,14 +207,15 @@ async function signOutUser() {
       const[quizIdx,setQuizIdx]=useState(0);const[quizAns,setQuizAns]=useState(null);const[quizScore,setQuizScore]=useState(0);const[quizDone,setQuizDone]=useState(false);
       const[expenses,setExpenses]=useState([]);const[showAddExp,setShowAddExp]=useState(false);const[newExp,setNewExp]=useState({amount:"",category:"food",note:""});
       const [user, setUser] = useState(null);
+      const [extraSlots, setExtraSlots] = useState(0); // купленные слоты
 
-useEffect(() => {
-  const unsub = auth.onAuthStateChanged((u) => setUser(u || null));
-  return () => unsub();
-}, []);
+      useEffect(() => {
+        const unsub = auth.onAuthStateChanged((u) => setUser(u || null));
+        return () => unsub();
+      }, []);
 
-          useEffect(() => {
-      (async () => {
+      useEffect(() => {
+        (async () => {
         const userId = await ensureAuth();
         setUid(userId);
 
@@ -223,6 +226,7 @@ useEffect(() => {
           const data = snap.data();
 
           setCoins(data.coins ?? 0);
+          setExtraSlots(data.extraSlots ?? 0);
           setTotalSaved(data.totalSaved ?? 0);
           setStreak(data.streak ?? 0);
 
@@ -239,6 +243,7 @@ useEffect(() => {
             coins: 0,
             totalSaved: 0,
             streak: 0,
+            extraSlots: 0,
 
             myHabits: [],
             customHabits: [],
@@ -260,7 +265,22 @@ useEffect(() => {
       useEffect(()=>{ACHIEVEMENTS.forEach(a=>{if(unlockedAch.includes(a.id))return;let ok=false;if(a.type==="habits"&&myHabits.length>=a.need)ok=true;if(a.type==="streak"&&streak>=a.need)ok=true;if(a.type==="savings"&&totalSaved>=a.need)ok=true;if(ok){setUnlockedAch(p=>[...p,a.id]);setShowAch(a);setCoins(p=>p+10);setTimeout(()=>setShowAch(null),3000)}})},[myHabits.length,streak,totalSaved]);
 
       const animCoin=()=>{setCoinAnim(true);setTimeout(()=>setCoinAnim(false),600)};
-      const addHabit=h=>{if(myHabits.find(x=>x.id===h.id))return;setMyHabits(p=>[...p,h]);setCoins(p=>p+2);animCoin()};
+      const addHabit = (h) => {
+        if (myHabits.find(x => x.id === h.id)) return;
+
+        // если слоты закончились — предлагаем купить
+        if (myHabits.length >= (FREE_HABIT_SLOTS + extraSlots)) {
+          const ok = window.confirm(`Лимит привычек достигнут.\nКупить +1 слот за ${EXTRA_SLOT_PRICE} монет?`);
+          if (!ok) return;
+
+          const bought = buySlot();
+          if (!bought) return;
+        }
+
+        setMyHabits(p => [...p, h]);
+        setCoins(p => p + 2);
+        animCoin();
+      };
       const removeHabit=id=>{setMyHabits(p=>p.filter(h=>h.id!==id));setCheckedToday(p=>{const n={...p};delete n[id];return n})};
       const toggleCheck=id=>{const h=myHabits.find(x=>x.id===id);setCheckedToday(p=>{const n={...p,[id]:!p[id]};if(!p[id]){setCoins(c=>c+5);setTotalSaved(s=>s+Math.round((h?.savingsPerMonth||1000)/30));animCoin();if(Object.values(n).filter(Boolean).length===myHabits.length&&myHabits.length>0)setStreak(s=>s+1)}return n})};
       const addCustom=()=>{if(!newHabit.title.trim())return;const h={id:"c_"+Date.now(),title:newHabit.title,emoji:newHabit.emoji||"💡",desc:newHabit.desc||"Моя привычка",science:"",category:"мои",difficulty:1,savingsPerMonth:Number(newHabit.savingsPerMonth)||1000};setCustomHabits(p=>[...p,h]);addHabit(h);setNewHabit({title:"",desc:"",emoji:"💡",savingsPerMonth:0});setShowNewHabit(false)};
@@ -281,12 +301,24 @@ useEffect(() => {
       const prgPct=myHabits.length>0?Math.round(chkCnt/myHabits.length*100):0;
       const level=Math.floor(coins/30)+1;const xp=coins%30;
       const wHours=(hourlyRate&&calcPrice)?(Number(calcPrice)/Number(hourlyRate)).toFixed(1):null;
+      const maxHabits = FREE_HABIT_SLOTS + extraSlots;
+      const canAddHabit = myHabits.length < maxHabits;
+      const slotsLeft = Math.max(0, maxHabits - myHabits.length);
+
+      const buySlot = () => {
+        if (coins < EXTRA_SLOT_PRICE) {
+          alert(`Нужно ${EXTRA_SLOT_PRICE} монет 😅`);
+          return false;
+        }
+        setCoins(c => c - EXTRA_SLOT_PRICE);
+        setExtraSlots(s => s + 1);
+        return true;
+      };
 
       const C={background:"white",borderRadius:20,padding:isD?24:18,boxShadow:"0 2px 16px rgba(0,0,0,.04)",border:"1px solid rgba(0,0,0,.05)"};
       const B=(bg="#E8899A")=>({border:"none",borderRadius:14,cursor:"pointer",fontWeight:800,fontSize:13,fontFamily:"'Nunito',sans-serif",background:`linear-gradient(135deg,${bg},${bg}dd)`,color:"white",boxShadow:`0 4px 12px ${bg}40`,padding:"10px 20px"});
       const TABS=[{id:"home",emoji:"🏠",label:"Главная"},{id:"catalog",emoji:"📖",label:"Каталог"},{id:"goals",emoji:"🎯",label:"Цели"},{id:"tools",emoji:"🧰",label:"Инструменты"}];
       const cp=isD?"32px 40px":"16px";const g2=isD?"1fr 1fr":"1fr";const g3=isW?"1fr 1fr 1fr":isD?"1fr 1fr":"1fr";
-
       const Modal=({children,onClose})=>(<div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:100,display:"flex",alignItems:isD?"center":"flex-end",justifyContent:"center"}}><div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:isD?520:480,background:"white",borderRadius:isD?24:"24px 24px 0 0",padding:24,animation:isD?"popIn .3s ease":"slideUp .3s ease",maxHeight:isD?"85vh":"90vh",overflowY:"auto"}}>{children}</div></div>);
       const saveToCloud = useMemo(() => debounce(async (payload) => {
       if (!uid) return;
@@ -309,6 +341,7 @@ useEffect(() => {
           unlockedAch,
           goals,
           activeCh,
+          extraSlots,
           expenses
         });
       }, [
@@ -318,6 +351,7 @@ useEffect(() => {
         unlockedAch, goals, activeCh, expenses,
         saveToCloud
       ]);
+      
 
       return(
         <div>
@@ -455,6 +489,54 @@ useEffect(() => {
         borderRadius: 14,
       }}
     >
+    <div
+  style={{
+    marginBottom: 12,
+    padding: "10px 12px",
+    borderRadius: 16,
+    background: "rgba(255,179,71,.08)",
+    border: "1px solid rgba(255,179,71,.15)"
+  }}
+>
+  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+    <div style={{fontSize:11,fontWeight:900,color:"#7A6B55"}}>
+      🎟️ Слоты: {myHabits.length}/{maxHabits}
+    </div>
+    <div style={{fontSize:10,fontWeight:800,color:"#A89080"}}>
+      осталось {slotsLeft}
+    </div>
+  </div>
+
+  <button
+    className="action-btn"
+    onClick={buySlot}
+    disabled={coins < EXTRA_SLOT_PRICE}
+    style={{
+      marginTop: 8,
+      width: "100%",
+      padding: "9px 10px",
+      borderRadius: 14,
+      border: "none",
+      cursor: coins < EXTRA_SLOT_PRICE ? "not-allowed" : "pointer",
+      fontWeight: 900,
+      fontSize: 12,
+      fontFamily: "'Nunito',sans-serif",
+      background: coins < EXTRA_SLOT_PRICE
+        ? "rgba(0,0,0,.06)"
+        : "linear-gradient(135deg,#FFD93D,#FFB347)",
+      color: coins < EXTRA_SLOT_PRICE ? "#A89080" : "#5D4E37",
+      boxShadow: coins < EXTRA_SLOT_PRICE ? "none" : "0 6px 16px rgba(255,179,71,.25)"
+    }}
+  >
+    +1 слот за {EXTRA_SLOT_PRICE} 🪙
+  </button>
+
+  {coins < EXTRA_SLOT_PRICE && (
+    <div style={{marginTop:6,fontSize:10,color:"#A89080",fontWeight:700,lineHeight:1.3}}>
+      Не хватает {EXTRA_SLOT_PRICE - coins} монет
+    </div>
+  )}
+</div>
       <CoinIcon size={18} />
       <span style={{ fontWeight: 800, fontSize: 15, color: "#B8860B" }}>{coins}</span>
       <div style={{ flex: 1, height: 5, background: "rgba(0,0,0,.06)", borderRadius: 3, marginLeft: 8 }}>
@@ -650,6 +732,7 @@ useEffect(() => {
       </div>
     )}
   </div>
+  
 )}
 
           {showAch&&<div style={{position:"fixed",top:80,left:"50%",transform:"translateX(-50%)",zIndex:999,animation:"popIn .4s ease"}}><div style={{background:"linear-gradient(135deg,#FFD93D,#FFB347)",borderRadius:20,padding:"16px 28px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 8px 32px rgba(255,179,71,.4)"}}><span style={{fontSize:36}}>{showAch.emoji}</span><div><div style={{fontWeight:800,color:"#5D4E37",fontSize:15}}>Достижение!</div><div style={{fontWeight:600,color:"#7A6B55",fontSize:13}}>{showAch.title}</div></div></div></div>}
@@ -682,18 +765,135 @@ useEffect(() => {
 
           {/* ═══ CATALOG ═══ */}
           {screen==="catalog"&&<div style={{padding:cp,animation:"fadeSlide .3s ease"}}>
-            {isD&&<h1 style={{fontFamily:"'Comfortaa',cursive",fontSize:28,color:"#4A3728",marginBottom:24}}>Каталог привычек</h1>}
-            <div style={{display:"flex",gap:8,marginBottom:isD?20:12,flexWrap:"wrap"}}>{Object.entries(CATEGORIES).map(([cat,em])=>(<button key={cat} className="cat-pill" onClick={()=>setSelectedCategory(cat)} style={{padding:"8px 16px",borderRadius:20,border:selectedCategory===cat?"2px solid #E8899A":"2px solid rgba(0,0,0,.06)",background:selectedCategory===cat?"rgba(232,137,154,.12)":"white",fontWeight:700,fontSize:13,color:selectedCategory===cat?"#D4738A":"#8A7B70",fontFamily:"'Nunito',sans-serif"}}>{em} {cat}</button>))}</div>
-            <div style={{display:"grid",gridTemplateColumns:g2,gap:isD?20:12}}>
-              {filtH.map((h,i)=>{const added=myHabits.find(m=>m.id===h.id);return(<div key={h.id} className="habit-card" style={{...C,border:added?"2px solid rgba(100,180,120,.3)":"1px solid rgba(0,0,0,.05)",animation:`fadeSlide .3s ease ${i*.04}s both`}}>
-                <div style={{display:"flex",gap:12}}><div style={{width:48,height:48,borderRadius:14,background:"linear-gradient(135deg,rgba(255,217,61,.15),rgba(255,179,71,.1))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{h.emoji}</div><div style={{flex:1}}><div style={{fontWeight:800,fontSize:16,color:"#4A3728",marginBottom:4}}>{h.title}</div><div style={{fontSize:13,color:"#8A7B70",lineHeight:1.5,fontWeight:600}}>{h.desc}</div></div></div>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginTop:12}}><div style={{padding:"4px 12px",borderRadius:10,fontSize:11,fontWeight:700,background:h.difficulty===1?"rgba(100,180,120,.1)":h.difficulty===2?"rgba(255,179,71,.12)":"rgba(232,137,154,.12)",color:h.difficulty===1?"#4A7C5A":h.difficulty===2?"#C48830":"#C4586E"}}>{"⭐".repeat(h.difficulty)}</div><div style={{fontSize:12,color:"#64B478",fontWeight:700}}>~{(h.savingsPerMonth||0).toLocaleString()}₽/мес</div></div>
-                {h.science&&<div style={{marginTop:10}}><button onClick={()=>setShowScience(showScience===h.id?null:h.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#7B8EC4",fontWeight:700,fontFamily:"'Nunito',sans-serif"}}>🔬 {showScience===h.id?"Скрыть":"Наука"}</button>{showScience===h.id&&<div style={{marginTop:8,padding:"10px 12px",background:"rgba(123,142,196,.06)",borderRadius:12,fontSize:12,color:"#5A6080",lineHeight:1.5,fontWeight:600,borderLeft:"3px solid rgba(123,142,196,.3)",animation:"fadeSlide .3s ease"}}>{h.science}</div>}</div>}
-                <button className="action-btn" onClick={()=>added?removeHabit(h.id):addHabit(h)} style={{marginTop:12,width:"100%",padding:"10px 0",borderRadius:14,border:"none",cursor:"pointer",fontWeight:800,fontSize:13,fontFamily:"'Nunito',sans-serif",background:added?"rgba(0,0,0,.04)":"linear-gradient(135deg,#FFB5C2,#E8899A)",color:added?"#A89080":"white",boxShadow:added?"none":"0 4px 12px rgba(232,137,154,.25)"}}>{added?"✓ Добавлено":"+ В мои привычки"}</button>
-              </div>)})}
+  {isD&&<h1 style={{fontFamily:"'Comfortaa',cursive",fontSize:28,color:"#4A3728",marginBottom:24}}>Каталог привычек</h1>}
+
+  <div style={{display:"flex",gap:8,marginBottom:isD?20:12,flexWrap:"wrap"}}>
+    {Object.entries(CATEGORIES).map(([cat,em])=>(
+      <button
+        key={cat}
+        className="cat-pill"
+        onClick={()=>setSelectedCategory(cat)}
+        style={{
+          padding:"8px 16px",
+          borderRadius:20,
+          border:selectedCategory===cat?"2px solid #E8899A":"2px solid rgba(0,0,0,.06)",
+          background:selectedCategory===cat?"rgba(232,137,154,.12)":"white",
+          fontWeight:700,
+          fontSize:13,
+          color:selectedCategory===cat?"#D4738A":"#8A7B70",
+          fontFamily:"'Nunito',sans-serif"
+        }}
+      >
+        {em} {cat}
+      </button>
+    ))}
+  </div>
+
+  <div style={{display:"grid",gridTemplateColumns:g2,gap:isD?20:12}}>
+    {filtH.map((h, i) => {
+      const added = myHabits.find(m => m.id === h.id);
+      const isLocked = !added && myHabits.length >= (FREE_HABIT_SLOTS + extraSlots);
+
+      return (
+        <div
+          key={h.id}
+          className="habit-card"
+          style={{
+            ...C,
+            border: added ? "2px solid rgba(100,180,120,.3)" : "1px solid rgba(0,0,0,.05)",
+            animation: `fadeSlide .3s ease ${i * .04}s both`
+          }}
+        >
+          <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: "linear-gradient(135deg,rgba(255,217,61,.15),rgba(255,179,71,.1))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>
+              {h.emoji}
             </div>
-            <div style={{marginTop:16}}><button className="action-btn" onClick={()=>setShowNewHabit(true)} style={{width:isD?"auto":"100%",padding:"14px 32px",borderRadius:18,border:"2px dashed rgba(232,137,154,.3)",background:"rgba(232,137,154,.04)",cursor:"pointer",fontWeight:800,fontSize:14,color:"#D4738A",fontFamily:"'Nunito',sans-serif"}}>✨ Создать свою</button></div>
-          </div>}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: "#4A3728", marginBottom: 4 }}>{h.title}</div>
+              <div style={{ fontSize: 13, color: "#8A7B70", lineHeight: 1.5, fontWeight: 600 }}>{h.desc}</div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+            <div style={{
+              padding: "4px 12px", borderRadius: 10, fontSize: 11, fontWeight: 700,
+              background: h.difficulty === 1 ? "rgba(100,180,120,.1)" : h.difficulty === 2 ? "rgba(255,179,71,.12)" : "rgba(232,137,154,.12)",
+              color: h.difficulty === 1 ? "#4A7C5A" : h.difficulty === 2 ? "#C48830" : "#C4586E"
+            }}>
+              {"⭐".repeat(h.difficulty)}
+            </div>
+            <div style={{ fontSize: 12, color: "#64B478", fontWeight: 700 }}>
+              ~{(h.savingsPerMonth || 0).toLocaleString()}₽/мес
+            </div>
+          </div>
+
+          {h.science && (
+            <div style={{ marginTop: 10 }}>
+              <button
+                onClick={() => setShowScience(showScience === h.id ? null : h.id)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#7B8EC4", fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}
+              >
+                🔬 {showScience === h.id ? "Скрыть" : "Наука"}
+              </button>
+
+              {showScience === h.id && (
+                <div style={{ marginTop: 8, padding: "10px 12px", background: "rgba(123,142,196,.06)", borderRadius: 12, fontSize: 12, color: "#5A6080", lineHeight: 1.5, fontWeight: 600, borderLeft: "3px solid rgba(123,142,196,.3)", animation: "fadeSlide .3s ease" }}>
+                  {h.science}
+                </div>
+              )}
+            </div>
+          )}
+
+          <button
+            className="action-btn"
+            onClick={() => added ? removeHabit(h.id) : addHabit(h)}
+            style={{
+              marginTop: 12,
+              width: "100%",
+              padding: "10px 0",
+              borderRadius: 14,
+              border: "none",
+              cursor: "pointer",
+              fontWeight: 800,
+              fontSize: 13,
+              fontFamily: "'Nunito',sans-serif",
+              background: added
+                ? "rgba(0,0,0,.04)"
+                : isLocked
+                ? "linear-gradient(135deg,#FFD93D,#FFB347)"
+                : "linear-gradient(135deg,#FFB5C2,#E8899A)",
+              color: added ? "#A89080" : "white",
+              boxShadow: added ? "none" : "0 4px 12px rgba(232,137,154,.25)"
+            }}
+          >
+            {added ? "✓ Добавлено" : isLocked ? `🔒 +1 слот за ${EXTRA_SLOT_PRICE}` : "+ В мои привычки"}
+          </button>
+        </div>
+      );
+    })}
+  </div>
+
+  <div style={{ marginTop: 16 }}>
+    <button
+      className="action-btn"
+      onClick={() => setShowNewHabit(true)}
+      style={{
+        width: isD ? "auto" : "100%",
+        padding: "14px 32px",
+        borderRadius: 18,
+        border: "2px dashed rgba(232,137,154,.3)",
+        background: "rgba(232,137,154,.04)",
+        cursor: "pointer",
+        fontWeight: 800,
+        fontSize: 14,
+        color: "#D4738A",
+        fontFamily: "'Nunito',sans-serif"
+      }}
+    >
+      ✨ Создать свою
+    </button>
+  </div>
+</div>}
 
           {/* ═══ TOOLS ═══ */}
           {screen==="tools"&&<div style={{padding:cp,animation:"fadeSlide .3s ease"}}>
